@@ -11,9 +11,11 @@ import java.security.Signature;
 import java.security.SignatureException;
 
 public abstract class Message {
+    
     public enum MessageType {
         BFT,
-        CLIENT
+        CLIENT,
+        ACK
     }
 
     protected MessageType msgType;
@@ -45,6 +47,10 @@ public abstract class Message {
             case CLIENT:
                 message = ClientMessage.fromDataInputStream(dis);
                 message.msgType = MessageType.CLIENT;
+                break;
+            case ACK:
+                message = ACKMessage.fromDataInputStream(dis);
+                message.msgType = MessageType.ACK;
                 break;
             default:
                 throw new IllegalArgumentException("Unknown message type: " + messageType);

@@ -8,7 +8,8 @@ import java.io.IOException;
 public class ClientMessage extends Message {
     public enum Type {
         REQUEST,
-        RESPONSE
+        RESPONSE,
+        ACK
     }
 
     public enum Status {
@@ -25,7 +26,7 @@ public class ClientMessage extends Message {
         return type;
     }
 
-    public Status geStatus() {
+    public Status getStatus() {
         return status;
     }
 
@@ -54,9 +55,10 @@ public class ClientMessage extends Message {
         dos.writeInt(type.ordinal());
         dos.writeInt(status.ordinal());
         dos.writeUTF(value);
-        dos.writeInt(super.signature.length);
-        dos.write(super.signature);
-
+        if (signature != null) {
+            dos.writeInt(super.signature.length);
+            dos.write(super.signature);
+        }
         return baos.toByteArray();
     }
 
@@ -81,7 +83,7 @@ public class ClientMessage extends Message {
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         DataOutputStream dos = new DataOutputStream(baos);
 
-        dos.writeInt(Message.MessageType.BFT.ordinal());
+        dos.writeInt(Message.MessageType.ACK.ordinal());
 
         dos.writeInt(type.ordinal());
         dos.writeInt(status.ordinal());

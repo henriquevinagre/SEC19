@@ -5,14 +5,14 @@ import java.net.*;
 import java.security.*;
 
 import pt.tecnico.crypto.KeyHandler;
+import pt.tecnico.links.StubbornLink;
 import pt.tecnico.messages.ClientMessage;
+import pt.tecnico.messages.LinkMessage;
 import pt.tecnico.messages.Message;
 
 
 public class Client {
 
-	/** Buffer size for receiving a UDP packet. */
-	private static final int BUFFER_SIZE = 65_507;
 
 	public static void main(String[] args) throws IOException {
 		// Check arguments
@@ -28,41 +28,36 @@ public class Client {
 		PrivateKey clientPrivKey = KeyHandler.getPrivateKey("keys/client.key");
 		PublicKey serverPubKey = KeyHandler.getPublicKey("keys/server.pub.key");
 
-		// Create socket
-		DatagramSocket socket = new DatagramSocket();
+		// Create channel
+		StubbornLink channel = new StubbornLink();
 
         // Create request message
 		ClientMessage request = new ClientMessage(ClientMessage.Type.REQUEST, "Add this string pls");
 		request.signMessage(clientPrivKey);
 
 		// Send request
-		byte[] clientData = request.toByteArray();
-		DatagramPacket clientPacket = new DatagramPacket(clientData, clientData.length, serverAddress, serverPort);
-		socket.send(clientPacket);
-		System.out.printf("Request packet sent to %s:%d!%n", serverAddress, serverPort);
+		LinkMessage requestMessage = new LinkMessage(request, serverAddress, serverPort);
+		channel.sp2pSend(requestMessage);
+
 
 		// Receive response
-		byte[] serverData = new byte[BUFFER_SIZE];
-		DatagramPacket serverPacket = new DatagramPacket(serverData, serverData.length);
-		System.out.println("Wait for response packet...");
-		socket.receive(serverPacket);
-		System.out.printf("Received packet from %s:%d!%n", serverPacket.getAddress(), serverPacket.getPort());
-		System.out.printf("%d bytes %n", serverPacket.getLength());
+		System.out.println("Wait for server response...");
+		LinkMessage responseMessage = channel.sp2pDeliver();
 
 		// Convert response to Message
-		Message serverMessage = Message.fromByteArray(serverPacket.getData());
+		Message response = responseMessage.getMessage();
 
-		if(!serverMessage.getMessageType().equals(Message.MessageType.CLIENT)) {
-			socket.close();
-			throw new IllegalStateException("Client should have not received message of type: " + serverMessage.getMessageType().toString());
+		if(!response.getMessageType().equals(Message.MessageType.CLIENT)) {
+			channel.close();
+			throw new IllegalStateException("Client should have not received message of type: " + response.getMessageType().toString());
 		}
 
-		ClientMessage message = (ClientMessage) serverMessage;
-		System.out.println("Response with status: " + message.geStatus().toString() + ", and signature " + message.hasValidSignature(serverPubKey));
+		ClientMessage message = (ClientMessage) response;
+		System.out.println("Response with status: " + message.getStatus().toString() + ", and signature " + message.hasValidSignature(serverPubKey));
 
-		// Close socket
-		socket.close();
-		System.out.println("Socket closed");
+		// Close channel
+		channel.close();
+		System.out.println("Channel closed");
 	}
 
 }
