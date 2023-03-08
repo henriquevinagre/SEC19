@@ -5,7 +5,7 @@ import java.net.*;
 import java.security.*;
 
 import pt.tecnico.crypto.KeyHandler;
-import pt.tecnico.links.StubbornLink;
+import pt.tecnico.links.PerfectLink;
 import pt.tecnico.messages.ClientMessage;
 import pt.tecnico.messages.LinkMessage;
 import pt.tecnico.messages.Message;
@@ -29,7 +29,7 @@ public class Client {
 		PublicKey serverPubKey = KeyHandler.getPublicKey("keys/server.pub.key");
 
 		// Create channel
-		StubbornLink channel = new StubbornLink();
+		PerfectLink channel = new PerfectLink();
 
         // Create request message
 		ClientMessage request = new ClientMessage(ClientMessage.Type.REQUEST, "Add this string pls");
@@ -37,12 +37,12 @@ public class Client {
 
 		// Send request
 		LinkMessage requestMessage = new LinkMessage(request, serverAddress, serverPort);
-		channel.sp2pSend(requestMessage);
+		channel.pp2pSend(requestMessage);
 
 
 		// Receive response
 		System.out.println("Wait for server response...");
-		LinkMessage responseMessage = channel.sp2pDeliver();
+		LinkMessage responseMessage = channel.pp2pDeliver();
 
 		// Convert response to Message
 		Message response = responseMessage.getMessage();

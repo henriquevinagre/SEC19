@@ -17,7 +17,7 @@ import pt.tecnico.messages.Message;
 // Stubborn point to point link using Fair loss links
 public class StubbornLink {
 
-    private static final int SET_SIZE = 4;
+    private static final int POOL_SIZE = 4;
     private static final int TIMEOUT_MS = 10000;
     
     private FairLossLink _flInstance;
@@ -70,8 +70,8 @@ public class StubbornLink {
 
         do {
             count++;
-            System.err.println("SL: Sending pool of messages (" + message.getId() + ")...");
-            for (int i = 0; i < SET_SIZE; i++)
+            System.err.println("SL: Sending pool " + POOL_SIZE + " of messages...");
+            for (int i = 0; i < POOL_SIZE; i++)
                 _flInstance.flp2pSend(message);
 
         } while(timeout(message));

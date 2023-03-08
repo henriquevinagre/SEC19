@@ -6,7 +6,7 @@ import java.security.PrivateKey;
 import java.security.PublicKey;
 
 import pt.tecnico.crypto.KeyHandler;
-import pt.tecnico.links.StubbornLink;
+import pt.tecnico.links.PerfectLink;
 import pt.tecnico.messages.ClientMessage;
 import pt.tecnico.messages.LinkMessage;
 
@@ -25,7 +25,7 @@ public class Server {
 		final int port = Integer.parseInt(args[0]);
 
 		// Create server socket
-		StubbornLink channel = new StubbornLink(port);
+		PerfectLink channel = new PerfectLink(port);
 		System.out.printf("Server will receive messages on port %d %n", port);
 
 		KeyHandler.generateKeys();
@@ -36,7 +36,7 @@ public class Server {
 		while (true) {
 			// Receive packet
 			System.out.println("Wait for some request from a client...");
-			LinkMessage requestMessage = channel.sp2pDeliver();
+			LinkMessage requestMessage = channel.pp2pDeliver();
 			InetAddress clientAddress = requestMessage.getEndHostAddress();
 			int clientPort = requestMessage.getEndHostPort();
 
@@ -55,7 +55,7 @@ public class Server {
 
 			// Send response
 			LinkMessage responseMessage = new LinkMessage(response, clientAddress, clientPort);
-			channel.sp2pSend(responseMessage);
+			channel.pp2pSend(responseMessage);
 		}
 	}
 }
