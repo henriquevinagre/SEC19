@@ -60,7 +60,7 @@ public class StubbornLink {
             return true; // Ignoring ACK. Continue sending messages
 
         ACKMessage ack = (ACKMessage) receivedMessage.getMessage();
-        return !sendMessage.getId().equals(ack.getReferId());
+        return sendMessage.getId() != ack.getReferId();
     }
 
 

@@ -1,6 +1,5 @@
 package pt.tecnico.messages;
 
-import java.util.UUID;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;
@@ -11,13 +10,14 @@ import java.net.InetAddress;
 
 public class LinkMessage {
 
-    private final String _id;
+    private static int UNIQUE_ID;
+    private final int _id;
     private Message _message;
     
     private InetAddress _endHostAddress;
     private int _endHostPort;
 
-    private LinkMessage(String id, Message message, InetAddress endHostAddress, int endHostPort) {
+    private LinkMessage(int id, Message message, InetAddress endHostAddress, int endHostPort) {
         _id = id;
         _message = message;
         _endHostAddress = endHostAddress;
@@ -25,10 +25,10 @@ public class LinkMessage {
     }
 
     public LinkMessage(Message message, InetAddress endHostAddress, int endHostPort) {
-        this(UUID.randomUUID().toString().replace("-", ""), message, endHostAddress, endHostPort);
+        this(++UNIQUE_ID, message, endHostAddress, endHostPort);
     }
 
-    public String getId() {
+    public int getId() {
         return _id;
     }
 
@@ -48,7 +48,7 @@ public class LinkMessage {
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         DataOutputStream dos = new DataOutputStream(baos);
 
-        dos.writeUTF(_id);
+        dos.writeInt(_id);
         byte[] messageBytes = _message.toByteArray();
         dos.write(messageBytes);
 
@@ -63,7 +63,7 @@ public class LinkMessage {
         ByteArrayInputStream bais = new ByteArrayInputStream(payload);
         DataInputStream dis = new DataInputStream(bais);
 
-        String payloadId = dis.readUTF();
+        int payloadId = dis.readInt();
         Message message = Message.fromByteArray(dis.readAllBytes());
 
         return new LinkMessage(payloadId, message, packet.getAddress(), packet.getPort());

@@ -7,13 +7,13 @@ import java.io.IOException;
 
 public class ACKMessage extends Message {
 
-    private final String referId;
+    private final int referId;
 
-    public String getReferId() {
+    public int getReferId() {
         return referId;
     }
 
-    public ACKMessage(String referId) {
+    public ACKMessage(int referId) {
         this.referId = referId;
     }
 
@@ -24,12 +24,12 @@ public class ACKMessage extends Message {
 
         dos.writeInt(Message.MessageType.ACK.ordinal());
 
-        dos.writeUTF(referId);
+        dos.writeInt(referId);
         return baos.toByteArray();
     }
 
     public static ACKMessage fromDataInputStream(DataInputStream dis) throws IOException {
-        String referId = dis.readUTF();
+        int referId = dis.readInt();
         return new ACKMessage(referId);
     }
 
@@ -39,7 +39,7 @@ public class ACKMessage extends Message {
         DataOutputStream dos = new DataOutputStream(baos);
 
         dos.writeInt(Message.MessageType.ACK.ordinal());
-        dos.writeUTF(referId);
+        dos.writeInt(referId);
         return baos.toByteArray();
     }
 }
