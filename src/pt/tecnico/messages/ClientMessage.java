@@ -8,8 +8,7 @@ import java.io.IOException;
 public class ClientMessage extends Message {
     public enum Type {
         REQUEST,
-        RESPONSE,
-        ACK
+        RESPONSE
     }
 
     public enum Status {

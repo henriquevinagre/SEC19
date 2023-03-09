@@ -6,7 +6,8 @@ import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
 import java.net.DatagramPacket;
-import java.net.InetAddress;
+
+import pt.tecnico.instances.HDLProcess;
 
 public class LinkMessage {
 
@@ -14,18 +15,16 @@ public class LinkMessage {
     private final int _id;
     private Message _message;
     
-    private InetAddress _endHostAddress;
-    private int _endHostPort;
+    private HDLProcess _endHost;
 
-    private LinkMessage(int id, Message message, InetAddress endHostAddress, int endHostPort) {
+    private LinkMessage(int id, Message message, HDLProcess endHost) {
         _id = id;
         _message = message;
-        _endHostAddress = endHostAddress;
-        _endHostPort = endHostPort;
+        _endHost = endHost;
     }
 
-    public LinkMessage(Message message, InetAddress endHostAddress, int endHostPort) {
-        this(++UNIQUE_ID, message, endHostAddress, endHostPort);
+    public LinkMessage(Message message, HDLProcess endHost) {
+        this(++UNIQUE_ID, message, endHost);
     }
 
     public int getId() {
@@ -36,12 +35,8 @@ public class LinkMessage {
         return _message;
     }
 
-    public InetAddress getEndHostAddress() {
-        return _endHostAddress;
-    }
-
-    public int getEndHostPort() {
-        return _endHostPort;
+    public HDLProcess getEndHost() {
+        return _endHost;
     }
  
     public DatagramPacket toDatagramPacket() throws IOException {
@@ -53,9 +48,8 @@ public class LinkMessage {
         dos.write(messageBytes);
 
         byte[] payload = baos.toByteArray();
-        return new DatagramPacket(payload, payload.length, _endHostAddress, _endHostPort);
+        return new DatagramPacket(payload, payload.length, _endHost.getAddress(), _endHost.getPort());
     }
-
 
 
     public static LinkMessage fromDatagramPacket(DatagramPacket packet) throws IOException {
@@ -65,9 +59,11 @@ public class LinkMessage {
 
         int payloadId = dis.readInt();
         Message message = Message.fromByteArray(dis.readAllBytes());
+        HDLProcess endHost = new HDLProcess(packet.getAddress().getHostAddress(), packet.getPort());
 
-        return new LinkMessage(payloadId, message, packet.getAddress(), packet.getPort());
+        return new LinkMessage(payloadId, message, endHost);
     }
+
 
     @Override
     public boolean equals(Object obj) {
@@ -75,8 +71,7 @@ public class LinkMessage {
 
         LinkMessage message = (LinkMessage) obj;    // we can use a uuid too.
         return (message.getId() == this.getId() &&
-                message.getEndHostAddress().equals(this.getEndHostAddress()) &&
-                message.getEndHostPort() == this.getEndHostPort());
+                message.getEndHost().equals(this.getEndHost()));
     }
 
 }

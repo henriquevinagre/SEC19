@@ -1,18 +1,16 @@
 package pt.tecnico.instances;
 
 import java.io.*;
-import java.net.*;
 import java.security.*;
 
 import pt.tecnico.crypto.KeyHandler;
-import pt.tecnico.links.PerfectLink;
+import pt.tecnico.links.AuthenticatedPerfectLink;
 import pt.tecnico.messages.ClientMessage;
 import pt.tecnico.messages.LinkMessage;
 import pt.tecnico.messages.Message;
 
 
 public class Client {
-
 
 	public static void main(String[] args) throws IOException {
 		// Check arguments
@@ -22,27 +20,28 @@ public class Client {
 			return;
 		}
 		final String serverHost = args[0];
-		final InetAddress serverAddress = InetAddress.getByName(serverHost);
 		final int serverPort = Integer.parseInt(args[1]);
+
+		// Create client process
+		HDLProcess clientProcess = new HDLProcess();
 
 		PrivateKey clientPrivKey = KeyHandler.getPrivateKey("keys/client.key");
 		PublicKey serverPubKey = KeyHandler.getPublicKey("keys/server.pub.key");
 
-		// Create channel
-		PerfectLink channel = new PerfectLink();
+		// Create channel point instance
+		AuthenticatedPerfectLink channel = new AuthenticatedPerfectLink(clientProcess, clientPrivKey, serverPubKey);
 
         // Create request message
 		ClientMessage request = new ClientMessage(ClientMessage.Type.REQUEST, "Add this string pls");
-		request.signMessage(clientPrivKey);
 
-		// Send request
-		LinkMessage requestMessage = new LinkMessage(request, serverAddress, serverPort);
-		channel.pp2pSend(requestMessage);
+		// Send request via channel
+		LinkMessage requestMessage = new LinkMessage(request, new HDLProcess(serverHost, serverPort));
+		channel.alp2pSend(requestMessage);
 
 
 		// Receive response
 		System.out.println("Wait for server response...");
-		LinkMessage responseMessage = channel.pp2pDeliver();
+		LinkMessage responseMessage = channel.alp2pDeliver();
 
 		// Convert response to Message
 		Message response = responseMessage.getMessage();

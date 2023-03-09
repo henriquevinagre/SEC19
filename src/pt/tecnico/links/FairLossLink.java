@@ -3,9 +3,9 @@ package pt.tecnico.links;
 import java.io.IOException;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
-import java.net.InetAddress;
 import java.net.SocketException;
 
+import pt.tecnico.instances.HDLProcess;
 import pt.tecnico.messages.LinkMessage;
 
 
@@ -25,29 +25,14 @@ public class FairLossLink {
 
     private DatagramSocket _socket;
 
-    public FairLossLink(InetAddress specAddress, int specPort) {
+    public FairLossLink(HDLProcess p) {
         try {
-            _socket = new DatagramSocket(specPort, specAddress);
+            _socket = new DatagramSocket(p.getPort(), p.getAddress());
         } catch (SocketException se) {
-            throw new IllegalStateException("[ERROR] Creating fair loss link instance");
+            throw new IllegalStateException("[ERROR] Creating fair loss link instance on process " + p.toString());
         }
     }
 
-    public FairLossLink(int specPort) {
-        try {
-            _socket = new DatagramSocket(specPort);
-        } catch (SocketException se) {
-            throw new IllegalStateException("[ERROR] Creating fair loss link instance");
-        }
-    }
-
-    public FairLossLink() {
-        try {
-            _socket = new DatagramSocket();
-        } catch (SocketException se) {
-            throw new IllegalStateException("[ERROR] Creating fair loss link instance");
-        }
-    }
 
     public void flp2pSend(LinkMessage message) {
         try {
@@ -62,13 +47,14 @@ public class FairLossLink {
 
     }
 
+
     public LinkMessage flp2pDeliver() {
         byte[] buffer = new byte[BUFFER_SIZE];
         DatagramPacket packet = new DatagramPacket(buffer, buffer.length);
         try {
             _socket.receive(packet);
             LinkMessage message = LinkMessage.fromDatagramPacket(packet);
-            System.err.printf("FLL: Receiving message from %s:%d!%n", message.getEndHostAddress(), message.getEndHostPort());
+            System.err.printf("FLL: Receiving message from %s!%n", message.getEndHost());
             System.err.printf("FLL: With %d bytes %n", packet.getLength());
             return message;
             
@@ -76,6 +62,7 @@ public class FairLossLink {
             throw new IllegalStateException("[ERROR] FLL: Could not receiving a packet on the channel");
         }
     }
+
 
     public void close() {
         _socket.close();

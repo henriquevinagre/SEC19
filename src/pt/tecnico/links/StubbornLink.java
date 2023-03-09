@@ -1,7 +1,6 @@
 package pt.tecnico.links;
 
 import java.io.IOException;
-import java.net.InetAddress;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
@@ -10,6 +9,7 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
+import pt.tecnico.instances.HDLProcess;
 import pt.tecnico.messages.ACKMessage;
 import pt.tecnico.messages.LinkMessage;
 import pt.tecnico.messages.Message;
@@ -22,17 +22,10 @@ public class StubbornLink {
     
     private FairLossLink _flInstance;
 
-    public StubbornLink(InetAddress specAddress, int specPort) {
-        _flInstance = new FairLossLink(specAddress, specPort);
+    public StubbornLink(HDLProcess p) {
+        _flInstance = new FairLossLink(p);
     }
 
-    public StubbornLink(int specPort) {
-        _flInstance = new FairLossLink(specPort);
-    }
-
-    public StubbornLink() {
-        _flInstance = new FairLossLink();
-    }
 
     private boolean timeout(LinkMessage sendMessage) {
         ExecutorService executor = Executors.newSingleThreadExecutor();
@@ -70,7 +63,7 @@ public class StubbornLink {
 
         do {
             count++;
-            System.err.println("SL: Sending pool of " + POOL_SIZE + "messages...");
+            System.err.println("SL: Sending pool of " + POOL_SIZE + " messages...");
             for (int i = 0; i < POOL_SIZE; i++)
                 _flInstance.flp2pSend(message);
 
@@ -80,21 +73,31 @@ public class StubbornLink {
         System.err.println("SL: ACK verified after " + count + " attempts!");
     }
 
+
     public LinkMessage sp2pDeliver() {
-        LinkMessage message = _flInstance.flp2pDeliver();
+        LinkMessage message = null;
+        
+        // Wait for a response message that is not a ACK
+        do {
+            message = _flInstance.flp2pDeliver();
+
+        } while (message.getMessage().getMessageType().equals(Message.MessageType.ACK));
+            
+        assert(message != null);
 
         // Sending ACK to sender as a stop point
 
         // Creating ACK for the message
         ACKMessage ack = new ACKMessage(message.getId());
-        LinkMessage ackMessage = new LinkMessage(ack, message.getEndHostAddress(), message.getEndHostPort());
+        LinkMessage ackMessage = new LinkMessage(ack, message.getEndHost());
 
         // Using fair loss link to send the ACK
         _flInstance.flp2pSend(ackMessage);
-        System.err.printf("SL: %s-ACK sent to %s:%d %n", message.getId(), message.getEndHostAddress().getHostName(), message.getEndHostPort());
+        System.err.printf("SL: %s-ACK sent to %s %n", message.getId(), message.getEndHost());
 
         return message;
     }
+
 
     public void close() {
         _flInstance.close();
