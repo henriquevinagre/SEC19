@@ -34,7 +34,7 @@ public class StubbornLink {
         _flInstance = new FairLossLink();
     }
 
-    private Boolean timeout(LinkMessage sendMessage) {
+    private boolean timeout(LinkMessage sendMessage) {
         ExecutorService executor = Executors.newSingleThreadExecutor();
         Future<LinkMessage> future = executor.submit(new Callable<LinkMessage>() {
                 public LinkMessage call() {
@@ -70,7 +70,7 @@ public class StubbornLink {
 
         do {
             count++;
-            System.err.println("SL: Sending pool " + POOL_SIZE + " of messages...");
+            System.err.println("SL: Sending pool of " + POOL_SIZE + "messages...");
             for (int i = 0; i < POOL_SIZE; i++)
                 _flInstance.flp2pSend(message);
 

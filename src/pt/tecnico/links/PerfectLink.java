@@ -38,7 +38,7 @@ public class PerfectLink {
         // Wait for a message that was not delivered yet
         do {
             message = _slInstance.sp2pDeliver();
-            System.err.println("PL: Received message with id: " + message.getId());
+            System.err.println("PL: Received message with id: " + message.getId()); // by now the id is from a static counter
         } while (_delivered.contains(message));
 
         assert(message != null);

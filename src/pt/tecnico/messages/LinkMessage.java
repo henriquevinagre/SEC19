@@ -69,4 +69,14 @@ public class LinkMessage {
         return new LinkMessage(payloadId, message, packet.getAddress(), packet.getPort());
     }
 
+    @Override
+    public boolean equals(Object obj) {
+        if (!(obj instanceof LinkMessage)) return false;
+
+        LinkMessage message = (LinkMessage) obj;    // we can use a uuid too.
+        return (message.getId() == this.getId() &&
+                message.getEndHostAddress().equals(this.getEndHostAddress()) &&
+                message.getEndHostPort() == this.getEndHostPort());
+    }
+
 }
