@@ -14,7 +14,7 @@ public class LinkMessage {
     private static int UNIQUE_ID;
     private final int _id;
     private Message _message;
-    
+    private int _senderId;
     private HDLProcess _endHost;
 
     private LinkMessage(int id, Message message, HDLProcess endHost) {
@@ -31,6 +31,10 @@ public class LinkMessage {
         return _id;
     }
 
+    public int getSenderId() {
+        return _senderId;
+    }
+
     public Message getMessage() {
         return _message;
     }
@@ -44,6 +48,7 @@ public class LinkMessage {
         DataOutputStream dos = new DataOutputStream(baos);
 
         dos.writeInt(_id);
+        dos.writeInt(_senderId);
         byte[] messageBytes = _message.toByteArray();
         dos.write(messageBytes);
 
@@ -58,8 +63,9 @@ public class LinkMessage {
         DataInputStream dis = new DataInputStream(bais);
 
         int payloadId = dis.readInt();
+        int senderId = dis.readInt();
         Message message = Message.fromByteArray(dis.readAllBytes());
-        HDLProcess endHost = new HDLProcess(packet.getAddress().getHostAddress(), packet.getPort());
+        HDLProcess endHost = new HDLProcess(senderId, packet.getAddress().getHostAddress(), packet.getPort());
 
         return new LinkMessage(payloadId, message, endHost);
     }

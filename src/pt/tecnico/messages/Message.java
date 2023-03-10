@@ -19,6 +19,7 @@ public abstract class Message {
     }
 
     protected MessageType msgType;
+    
     protected byte[] signature;
 
     public MessageType getMessageType() {

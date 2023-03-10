@@ -1,0 +1,7 @@
+# Clients
+C Never Gonna
+C Give You Up
+
+# Servers
+S 8000
+S 8001

@@ -7,18 +7,27 @@ import java.security.*;
 import java.security.spec.*;
 
 public class KeyHandler {
-    private static String clientPubKey = "keys/client.pub.key";
-    private static String clientPrivKey = "keys/client.key";
-    private static String serverPubKey = "keys/server.pub.key";
-    private static String serverPrivKey = "keys/server.key";
+    static final String PRIVATE_SUFFIX = ".key";
+    static final String PUBLIC_SUFFIX = ".pub.key";
 
     private KeyHandler() {
         throw new IllegalStateException("Utility class");
     }
 
-    public static void generateKeys() {
-        generateKeyPair(clientPrivKey, clientPubKey);
-        generateKeyPair(serverPrivKey, serverPubKey);
+    private static String getPrefix(int id) {
+        return "instance-" + id;
+    }
+
+    private static String getPrivateKeyFile(int id) {
+        return getPrefix(id) + PRIVATE_SUFFIX;
+    }
+
+    private static String getPublicKeyFile(int id) {
+        return getPrefix(id) + PUBLIC_SUFFIX;
+    }
+
+    public static void generateKey(int id) {
+        generateKeyPair(getPrivateKeyFile(id), getPublicKeyFile(id));
     }
 
     private static void generateKeyPair(String privatePathName, String publicPathName) {
@@ -44,38 +53,38 @@ public class KeyHandler {
         }
     }
 
-    public static PrivateKey getPrivateKey(String pathName) throws IOException {
+    public static PrivateKey getPrivateKey(int id) {
         PrivateKey key = null;
 
         try {
             FileInputStream fis;
-            fis = new FileInputStream(pathName);
+            fis = new FileInputStream(getPrivateKeyFile(id));
             byte[] keyBytes = fis.readAllBytes();
             fis.close();
 
             PKCS8EncodedKeySpec privateKeySpec = new PKCS8EncodedKeySpec(keyBytes);
             key = KeyFactory.getInstance("RSA").generatePrivate(privateKeySpec);
         }
-        catch (NoSuchAlgorithmException | InvalidKeySpecException e) {
+        catch (NoSuchAlgorithmException | InvalidKeySpecException | IOException e) {
             e.printStackTrace();
         }
 
         return key;
     }
 
-    public static PublicKey getPublicKey(String pathName) throws IOException {
+    public static PublicKey getPublicKey(int id) {
         PublicKey key = null;
 
         try {
             FileInputStream fis;
-            fis = new FileInputStream(pathName);
+            fis = new FileInputStream(getPublicKeyFile(id));
             byte[] keyBytes = fis.readAllBytes();
             fis.close();
 
             X509EncodedKeySpec publicKeySpec = new X509EncodedKeySpec(keyBytes);
             key = KeyFactory.getInstance("RSA").generatePublic(publicKeySpec);
         }
-        catch (NoSuchAlgorithmException | InvalidKeySpecException e) {
+        catch (NoSuchAlgorithmException | InvalidKeySpecException | IOException e) {
             e.printStackTrace();
         }
 

@@ -11,31 +11,29 @@ import pt.tecnico.messages.Message;
 
 
 public class Client {
+	private String message;
+	private int id;
 
-	public static void main(String[] args) throws IOException {
-		// Check arguments
-		if (args.length < 2) {
-			System.err.println("Argument(s) missing!");
-			System.err.printf("Usage: java %s host port%n", Client.class.getName());
-			return;
-		}
-		final String serverHost = args[0];
-		final int serverPort = Integer.parseInt(args[1]);
 
+	public Client(int id, String message) {
+		this.message = message;
+		this.id = id;
+		KeyHandler.generateKey(id);
+	}
+
+	public void execute() throws IOException {
 		// Create client process
-		HDLProcess clientProcess = new HDLProcess();
-
-		PrivateKey clientPrivKey = KeyHandler.getPrivateKey("keys/client.key");
-		PublicKey serverPubKey = KeyHandler.getPublicKey("keys/server.pub.key");
+		HDLProcess clientProcess = new HDLProcess(id);
 
 		// Create channel point instance
-		AuthenticatedPerfectLink channel = new AuthenticatedPerfectLink(clientProcess, clientPrivKey, serverPubKey);
+		AuthenticatedPerfectLink channel = new AuthenticatedPerfectLink(clientProcess);
 
         // Create request message
-		ClientMessage request = new ClientMessage(ClientMessage.Type.REQUEST, "Add this string pls");
+		ClientMessage request = new ClientMessage(ClientMessage.Type.REQUEST, this.message);
 
 		// Send request via channel
-		LinkMessage requestMessage = new LinkMessage(request, new HDLProcess(serverHost, serverPort));
+		// TODO port hardcoded
+		LinkMessage requestMessage = new LinkMessage(request, clientProcess);
 		channel.alp2pSend(requestMessage);
 
 
@@ -52,7 +50,7 @@ public class Client {
 		}
 
 		ClientMessage message = (ClientMessage) response;
-		System.out.println("Response with status: " + message.getStatus().toString() + ", and signature " + message.hasValidSignature(serverPubKey));
+		System.out.println("Response with status: " + message.getStatus().toString());
 
 		// Close channel
 		channel.close();

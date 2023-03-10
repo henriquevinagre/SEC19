@@ -33,7 +33,6 @@ public class FairLossLink {
         }
     }
 
-
     public void flp2pSend(LinkMessage message) {
         try {
             DatagramPacket packet = message.toDatagramPacket();
@@ -44,9 +43,7 @@ public class FairLossLink {
         } catch (IOException ioe) {
             throw new IllegalArgumentException("[ERROR] FLL: Sending message on the channel");
         }
-
     }
-
 
     public LinkMessage flp2pDeliver() {
         byte[] buffer = new byte[BUFFER_SIZE];
@@ -56,13 +53,12 @@ public class FairLossLink {
             LinkMessage message = LinkMessage.fromDatagramPacket(packet);
             System.err.printf("FLL: Receiving message from %s!%n", message.getEndHost());
             System.err.printf("FLL: With %d bytes %n", packet.getLength());
+
             return message;
-            
         } catch (IOException ioe) {
             throw new IllegalStateException("[ERROR] FLL: Could not receiving a packet on the channel");
         }
     }
-
 
     public void close() {
         _socket.close();
