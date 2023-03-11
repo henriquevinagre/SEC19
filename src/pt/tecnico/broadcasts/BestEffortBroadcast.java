@@ -22,14 +22,13 @@ public class BestEffortBroadcast {
     public void broadcast(Message message) throws IOException {
         System.err.println("BEB: Broadcasting message " + message.toString() + "...");
         for (HDLProcess pj: otherProcesses) {
-            LinkMessage linkMessage = new LinkMessage(message, pj);
+            LinkMessage linkMessage = new LinkMessage(message, alInstance.getChannelOwner(), pj);
             alInstance.alp2pSend(linkMessage);
         }
     }
 
-    public Message deliver() {
-        LinkMessage message = alInstance.alp2pDeliver();
-        return message.getMessage();
+    public LinkMessage deliver() throws IOException {
+        return alInstance.alp2pDeliver();
     }
 
     public void close() {

@@ -24,8 +24,10 @@ public class FairLossLink {
 	private static final int BUFFER_SIZE = MAX_UDP_DATA_SIZE;
 
     private DatagramSocket _socket;
+    private HDLProcess channelOwner;
 
     public FairLossLink(HDLProcess p) {
+        channelOwner = p;
         try {
             _socket = new DatagramSocket(p.getPort(), p.getAddress());
         } catch (SocketException se) {
@@ -39,7 +41,6 @@ public class FairLossLink {
             _socket.send(packet);
             System.err.printf("FLL: Sending message to %s:%d!%n", packet.getAddress(), packet.getPort());
             System.err.printf("FLL: With %d bytes %n", packet.getLength());
-            
         } catch (IOException ioe) {
             throw new IllegalArgumentException("[ERROR] FLL: Sending message on the channel");
         }
@@ -50,8 +51,8 @@ public class FairLossLink {
         DatagramPacket packet = new DatagramPacket(buffer, buffer.length);
         try {
             _socket.receive(packet);
-            LinkMessage message = LinkMessage.fromDatagramPacket(packet);
-            System.err.printf("FLL: Receiving message from %s!%n", message.getEndHost());
+            LinkMessage message = LinkMessage.fromDatagramPacket(packet, channelOwner);
+            System.err.printf("FLL: Receiving message from %s!%n", message.getSender());
             System.err.printf("FLL: With %d bytes %n", packet.getLength());
 
             return message;

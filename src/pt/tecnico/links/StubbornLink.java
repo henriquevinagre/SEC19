@@ -22,7 +22,10 @@ public class StubbornLink {
     
     private FairLossLink _flInstance;
 
+    private HDLProcess channelOwner;
+
     public StubbornLink(HDLProcess p) {
+        channelOwner = p;
         _flInstance = new FairLossLink(p);
     }
 
@@ -30,7 +33,7 @@ public class StubbornLink {
     private boolean timeout(LinkMessage sendMessage) {
         ExecutorService executor = Executors.newSingleThreadExecutor();
         Future<LinkMessage> future = executor.submit(new Callable<LinkMessage>() {
-                public LinkMessage call() {
+                public LinkMessage call() throws IOException {
                     return _flInstance.flp2pDeliver();
                 }
             }
@@ -74,26 +77,26 @@ public class StubbornLink {
     }
 
 
-    public LinkMessage sp2pDeliver() {
+    public LinkMessage sp2pDeliver() throws IOException {
         LinkMessage message = null;
-        
+
         // Wait for a response message that is not a ACK
         do {
             message = _flInstance.flp2pDeliver();
 
         } while (message.getMessage().getMessageType().equals(Message.MessageType.ACK));
-            
+
         assert(message != null);
 
         // Sending ACK to sender as a stop point
 
         // Creating ACK for the message
         ACKMessage ack = new ACKMessage(message.getId());
-        LinkMessage ackMessage = new LinkMessage(ack, message.getEndHost());
+        LinkMessage ackMessage = new LinkMessage(ack, this.channelOwner, message.getSender());
 
         // Using fair loss link to send the ACK
         _flInstance.flp2pSend(ackMessage);
-        System.err.printf("SL: %s-ACK sent to %s %n", message.getId(), message.getEndHost());
+        System.err.printf("SL: %s-ACK sent to %s %n", message.getId(), message.getSender());
 
         return message;
     }

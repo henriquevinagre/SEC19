@@ -1,15 +1,9 @@
 package pt.tecnico.instances;
 
 import java.io.*;
-import java.security.*;
 
-import pt.tecnico.broadcasts.BestEffortBroadcast;
-import pt.tecnico.crypto.KeyHandler;
-import pt.tecnico.links.AuthenticatedPerfectLink;
+import pt.tecnico.ibft.IBFTClientAPI;
 import pt.tecnico.messages.ClientMessage;
-import pt.tecnico.messages.LinkMessage;
-import pt.tecnico.messages.Message;
-
 
 public class Client {
 	private String message;
@@ -19,41 +13,17 @@ public class Client {
 	public Client(int id, String message) {
 		this.message = message;
 		this.id = id;
-		KeyHandler.generateKey(id);
 	}
 
 	public void execute() throws IOException {
-		// Create client process
-		HDLProcess clientProcess = new HDLProcess(id);
+		IBFTClientAPI api = new IBFTClientAPI(id);
 
-		// Create channel point instance
-		AuthenticatedPerfectLink channel = new AuthenticatedPerfectLink(clientProcess);
+		System.out.println("Client " + id + ": Sending request to append message: " + this.message);
+		ClientMessage.Status responseStatus = api.append(this.message);
 
-        // Create request message
-		ClientMessage request = new ClientMessage(ClientMessage.Type.REQUEST, this.message);
+		System.out.println("Client " + id + ": Request completed with status: " + responseStatus);
 
-		// Send request via channel
-		BestEffortBroadcast broadcastChannel = new BestEffortBroadcast(channel, InstaceManager.getServerProcesses());
-		broadcastChannel.broadcast(request);
-
-		// Receive response
-		System.out.println("Wait for server response...");
-		LinkMessage responseMessage = channel.alp2pDeliver();
-
-		// Convert response to Message
-		Message response = responseMessage.getMessage();
-
-		if(!response.getMessageType().equals(Message.MessageType.CLIENT)) {
-			channel.close();
-			throw new IllegalStateException("Client should have not received message of type: " + response.getMessageType().toString());
-		}
-
-		ClientMessage message = (ClientMessage) response;
-		System.out.println("Response with status: " + message.getStatus().toString());
-
-		// Close channel
-		channel.close();
-		System.out.println("Channel closed");
+		api.shutdown();
 	}
 
 }

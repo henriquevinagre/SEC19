@@ -1,21 +1,26 @@
 package pt.tecnico.crypto;
 
+import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.security.*;
 import java.security.spec.*;
+import java.util.ArrayList;
+import java.util.List;
 
 public class KeyHandler {
     static final String PRIVATE_SUFFIX = ".key";
     static final String PUBLIC_SUFFIX = ".pub.key";
+
+    static final List<File> keysFiles = new ArrayList<File>();
 
     private KeyHandler() {
         throw new IllegalStateException("Utility class");
     }
 
     private static String getPrefix(int id) {
-        return "instance-" + id;
+        return "keys/instance-" + id;
     }
 
     private static String getPrivateKeyFile(int id) {
@@ -47,6 +52,9 @@ public class KeyHandler {
             FileOutputStream publicFos = new FileOutputStream(publicPathName);
             publicFos.write(publicKey.getEncoded());
             publicFos.close();
+
+            keysFiles.add(new File(publicPathName));
+            keysFiles.add(new File(privatePathName));
         }
         catch (NoSuchAlgorithmException | IOException e) {
             e.printStackTrace();
@@ -89,5 +97,11 @@ public class KeyHandler {
         }
 
         return key;
+    }
+
+    public static void cleanKeys() {
+        for (File file : keysFiles) {
+            file.delete();
+        }
     }
 }

@@ -24,7 +24,7 @@ public class PerfectLink {
     }
 
 
-    public LinkMessage pp2pDeliver() {
+    public LinkMessage pp2pDeliver() throws IOException {
         LinkMessage message;
 
         // Wait for a message that was not delivered yet

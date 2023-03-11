@@ -49,6 +49,8 @@ public class HDLProcess {
 
     public int getPort() { return _port; }
 
+    public int getID() { return _id; }
+
     @Override
     public boolean equals(Object obj) {
         if (!(obj instanceof HDLProcess)) return false;

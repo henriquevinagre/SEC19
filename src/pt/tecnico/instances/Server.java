@@ -5,7 +5,6 @@ import java.net.UnknownHostException;
 import java.util.List;
 
 import pt.tecnico.broadcasts.BestEffortBroadcast;
-import pt.tecnico.crypto.KeyHandler;
 import pt.tecnico.links.AuthenticatedPerfectLink;
 import pt.tecnico.messages.ClientMessage;
 import pt.tecnico.messages.LinkMessage;
@@ -14,14 +13,14 @@ import pt.tecnico.messages.Message;
 
 public class Server {
 	private int port;
-	private int id;
 	private boolean running = false;
 	private HDLProcess serverProcess;
+	private AuthenticatedPerfectLink channel;
 
 	public Server(int id, int port) throws UnknownHostException {
 		this.port = port;
-		serverProcess = new HDLProcess(port);
-		KeyHandler.generateKey(id);
+		serverProcess = new HDLProcess(id, port);
+		channel = new AuthenticatedPerfectLink(serverProcess);
 	}
 
 	public HDLProcess getHDLInstance() {
@@ -30,7 +29,6 @@ public class Server {
 
 	public void execute() throws IOException {
 		// Create channel
-		AuthenticatedPerfectLink channel = new AuthenticatedPerfectLink(serverProcess);
 		BestEffortBroadcast bebInstance = new BestEffortBroadcast(channel, List.of());
 		System.out.printf("Server will receive messages on port %d %n", port);
 
@@ -38,31 +36,14 @@ public class Server {
 		// Wait for client packets
 		while (running) {
 			// Receive packet
-			System.out.println("Wait for some request from a client...");
+			System.out.println("Server " + serverProcess.getID() + " Waiting for some request from a client...");
 			LinkMessage requestMessage = channel.alp2pDeliver();
 
 			// Get send process (info)
-			HDLProcess clientProcess = requestMessage.getEndHost();
+			HDLProcess clientProcess = requestMessage.getSender();
 
-			// Convert request to Message
-			ClientMessage clientMessage = (ClientMessage) requestMessage.getMessage();
-
-			if(requestMessage.getMessage().getMessageType().equals(Message.MessageType.BFT)) {
-				// process algorithm
-			} else if(requestMessage.getMessage().getMessageType().equals(Message.MessageType.CLIENT)) {
-				// process consensus and respond
-			}
-
-			// ### IBFT algorithm ###
-			bebInstance.broadcast(clientMessage);
-
-			// Create response message
 			ClientMessage response = new ClientMessage(ClientMessage.Type.RESPONSE, ClientMessage.Status.OK);
-			System.out.println("Response message: " + response.getStatus().toString());
-
-			// Send response
-			LinkMessage responseMessage = new LinkMessage(response, clientProcess);
-			channel.alp2pSend(responseMessage);
+			channel.alp2pSend(new LinkMessage(response, serverProcess, clientProcess));
 		}
 
 		channel.close();
@@ -70,5 +51,6 @@ public class Server {
 
 	public void kill() {
 		this.running = false;
+		this.channel.close();
 	}
 }
