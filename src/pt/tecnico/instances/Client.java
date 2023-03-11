@@ -3,6 +3,7 @@ package pt.tecnico.instances;
 import java.io.*;
 import java.security.*;
 
+import pt.tecnico.broadcasts.BestEffortBroadcast;
 import pt.tecnico.crypto.KeyHandler;
 import pt.tecnico.links.AuthenticatedPerfectLink;
 import pt.tecnico.messages.ClientMessage;
@@ -32,10 +33,8 @@ public class Client {
 		ClientMessage request = new ClientMessage(ClientMessage.Type.REQUEST, this.message);
 
 		// Send request via channel
-		// TODO port hardcoded
-		LinkMessage requestMessage = new LinkMessage(request, clientProcess);
-		channel.alp2pSend(requestMessage);
-
+		BestEffortBroadcast broadcastChannel = new BestEffortBroadcast(channel, InstaceManager.getServerProcesses());
+		broadcastChannel.broadcast(request);
 
 		// Receive response
 		System.out.println("Wait for server response...");

@@ -22,6 +22,10 @@ public class InstaceManager {
         return result;
     }
 
+    public static HDLProcess getLeader(int consensusInstance, int round) {
+        return servers.get((consensusInstance + round) % servers.size()).getHDLInstance();
+    }
+
     // each line of the config file should be either (assuming all run in localhost IP):
         // C [MESSAGE]
         // S [PORT]
@@ -40,12 +44,15 @@ public class InstaceManager {
             while ((line = br.readLine()) != null) {
                 switch (line.charAt(0)) {
                     case 'C':
-                        clients.add(new Client(id++, line.substring(2)));
+                        clients.add(new Client(++id, line.substring(2)));
+                        break;
                     case 'S':
-                        servers.add(new Server(id++, Integer.parseInt(line.substring(2))));
+                        servers.add(new Server(++id, Integer.parseInt(line.substring(2))));
+                        break;
                     default:
                         continue;
                 }
+                KeyHandler.generateKey(id);
             }
         }
 

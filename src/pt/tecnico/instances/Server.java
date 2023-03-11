@@ -9,6 +9,7 @@ import pt.tecnico.crypto.KeyHandler;
 import pt.tecnico.links.AuthenticatedPerfectLink;
 import pt.tecnico.messages.ClientMessage;
 import pt.tecnico.messages.LinkMessage;
+import pt.tecnico.messages.Message;
 
 
 public class Server {
@@ -45,6 +46,12 @@ public class Server {
 
 			// Convert request to Message
 			ClientMessage clientMessage = (ClientMessage) requestMessage.getMessage();
+
+			if(requestMessage.getMessage().getMessageType().equals(Message.MessageType.BFT)) {
+				// process algorithm
+			} else if(requestMessage.getMessage().getMessageType().equals(Message.MessageType.CLIENT)) {
+				// process consensus and respond
+			}
 
 			// ### IBFT algorithm ###
 			bebInstance.broadcast(clientMessage);
