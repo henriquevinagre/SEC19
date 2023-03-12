@@ -34,10 +34,10 @@ public class IBFTClientAPI {
         BestEffortBroadcast broadcastChannel = new BestEffortBroadcast(channel, InstanceManager.getServerProcesses());
 		broadcastChannel.broadcast(request);
 
-        while(numberResponses < InstanceManager.getTotalNumberServers()) {
+        while (numberResponses < InstanceManager.getTotalNumberServers()) {
             Message response = broadcastChannel.deliver().getMessage();
 
-            if(!response.getMessageType().equals(Message.MessageType.CLIENT))
+            if (!response.getMessageType().equals(Message.MessageType.CLIENT))
                 continue;
 
             ClientMessage message = (ClientMessage) response;

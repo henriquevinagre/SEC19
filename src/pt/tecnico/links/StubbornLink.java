@@ -21,9 +21,14 @@ import pt.tecnico.messages.Message;
 public class StubbornLink {
 
     private static final int POOL_SIZE = 1;
-    private static final int TIMEOUT_MS = 1_000;
+    private static final int TIMEOUT_MS = 500;
 
-    private Thread deliverThread = new Thread(() -> { continuousDeliver();});
+    private Thread deliverThread = new Thread(() -> { try {
+        continuousDeliver();
+    } catch (IOException e) {
+        // TODO Auto-generated catch block
+        e.printStackTrace();
+    }});
 
     private FairLossLink _flInstance;
 
@@ -38,33 +43,45 @@ public class StubbornLink {
         deliverThread.start();
     }
 
-    private void continuousDeliver() {
+    private void continuousDeliver() throws IOException {
        while (true) {
            LinkMessage delivered = _flInstance.flp2pDeliver();
-           if (delivered.getMessage() instanceof ACKMessage) {
+           System.err.println("msg_id = " + delivered.getId() + ", from " + delivered.getSender().getID() + ", to " + delivered.getReceiver().getID());
+           System.err.println("SL: Continuous Deliver: " + delivered.getMessage().getMessageType());
+
+           if (delivered.getMessage().getMessageType() == Message.MessageType.ACK) {
                 synchronized (acks) {
+                    System.err.println("SL: Ack added to list");
                     acks.add(delivered);
                     acks.notifyAll();
                 }
            }
            else {
                 synchronized (messages) {
+                    System.err.println("SL: Message added to list");
                     messages.add(delivered);
                     messages.notifyAll();
                 }
            }
+
+           if (delivered.getTerminate()) break; // terminating 🤖🤖🤖
        }
     }
 
     private LinkMessage getAckMessage(int referId) throws InterruptedException {
-        synchronized (acks) {
-            while (true) {
-                if (!acks.isEmpty())
-                    for (int i = acks.size()-1; i >= 0; i--)
-                        if (((ACKMessage) acks.get(i).getMessage()).getReferId() == referId )
+        System.err.println("SL: TRYING ACK-" + referId + " retrieved");
+        while (true) {
+            synchronized (acks) {
+                if (!acks.isEmpty()) {
+                    for (int i = acks.size()-1; i >= 0; i--) {
+                        if (((ACKMessage) acks.get(i).getMessage()).getReferId() == referId ) {
+                            System.err.println("SL: ACK-" + referId + " retrieved");
                             return acks.remove(i);
-                else
+                        }
+                    }
+                } else {
                     acks.wait();
+                }
             }
         }
     }
@@ -72,8 +89,10 @@ public class StubbornLink {
     private LinkMessage getMessage() throws InterruptedException {
         synchronized (messages) {
             while (true) {
-                if (!messages.isEmpty())
+                if (!messages.isEmpty()) {
+                    System.err.println("SL: Message retrieved from list");
                     return messages.remove(0);
+                }
                 else
                     messages.wait();
             }
@@ -139,12 +158,17 @@ public class StubbornLink {
             if (!thread.isAlive()) break;
             count++;
             System.err.println("SL: Sending pool of " + POOL_SIZE + " messages...");
-            System.out.println("SL: Sending pool of " + POOL_SIZE + " messages...");
             for (int i = 0; i < POOL_SIZE; i++)
                 _flInstance.flp2pSend(message);
             
+            if (message.getTerminate()) {
+                thread.interrupt(); break;
+            }
+            
         // First timeout is bogus, just wait a bit to check the ack :)
-        } while (timeout(500) && thread.isAlive() && timeout(TIMEOUT_MS));
+        } while (count <= 5 && timeout(500) && thread.isAlive() && timeout(TIMEOUT_MS));
+
+        thread.interrupt();
 
 
         System.err.println("SL: ACK verified after " + count + " attempts!");
@@ -155,11 +179,13 @@ public class StubbornLink {
         LinkMessage message = null;
 
         // Wait for a response message that is not an ACK
-        message = getMessage();
-        System.out.println("SL: Received message with id: " + message.getId());
-
+        message = this.getMessage();
+        System.err.println("SL: Received message with id: " + message.getId());
 
         assert(message != null);
+
+        if (message.getTerminate())
+            return message;
 
         // Sending ACK to sender as a stop point
 
@@ -169,7 +195,7 @@ public class StubbornLink {
 
         // Using fair loss link to send the ACK
         _flInstance.flp2pSend(ackMessage);
-        System.out.printf("SL: %s-ACK sent to %s %n", message.getId(), message.getSender());
+        System.err.printf("SL: %s-ACK sent to %s %n", message.getId(), message.getSender());
 
         return message;
     }

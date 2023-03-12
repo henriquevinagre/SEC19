@@ -31,12 +31,11 @@ public class PerfectLink {
         do {
             message = _slInstance.sp2pDeliver();
             System.err.println("PL: Received message with id: " + message.getId());
-            System.out.println("PL: Received message with id: " + message.getId());
         } while (_delivered.contains(message));
 
         assert(message != null);
 
-        System.out.println("PL: Message already not delivered! Delivering message...");
+        System.err.println("PL: Message not yet delivered! Delivering message...");
 
         _delivered.add(message);
         return message;

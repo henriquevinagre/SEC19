@@ -1,12 +1,12 @@
-0
+1
 # ^ Number of byzantine servers to be supported
 
 # Clients
 C Never Gonna
-#C Give You Up
+C Give You Up
 
 # Servers
 S 8000
 S 8001
-#S 8002
-#S 8003
+S 8002
+S 8003

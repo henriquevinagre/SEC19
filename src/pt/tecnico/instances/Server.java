@@ -37,48 +37,43 @@ public class Server {
 		this.running = true;
 		boolean terminateMsgSeen = false;
 		// Wait for client packets
-		while (running && !terminateMsgSeen) {
+		while (running || !terminateMsgSeen) {
 			// Receive packet
-			System.out.println("Thread " + Thread.currentThread().getId() + " going into deliver.");
 			System.out.println("Server " + serverProcess.getID() + " Waiting for some request from a client...");
 			LinkMessage requestMessage = null;
 			try {
 				requestMessage = channel.alp2pDeliver();
+
+				if (requestMessage.getTerminate()) {
+					terminateMsgSeen = true;
+					continue;
+				}
+
+				// Get send process (info)
+				HDLProcess clientProcess = requestMessage.getSender();
+
+				ClientMessage response = new ClientMessage(ClientMessage.Type.RESPONSE, ClientMessage.Status.OK);
+				channel.alp2pSend(new LinkMessage(response, serverProcess, clientProcess));
 			} catch (Exception e) {
 				// e.printStackTrace();
 				continue;
 			}
-
-
-			System.out.println("" + serverProcess.getID() + " (run=" + running + "): Received " + requestMessage.getMessage().getMessageType().toString());
-
-			// if (requestMessage.getTerminate()) {
-			// 	terminateMsgSeen = true;
-			// 	continue;
-			// }
-
-			// Get send process (info)
-			HDLProcess clientProcess = requestMessage.getSender();
-
-			ClientMessage response = new ClientMessage(ClientMessage.Type.RESPONSE, ClientMessage.Status.OK);
-			channel.alp2pSend(new LinkMessage(response, serverProcess, clientProcess));
 		}
-		System.out.println("" + serverProcess.getID() + ": Channel closed!");
 
-		System.out.println("Thread " + Thread.currentThread().getId() + " closing channel.");
-		// channel.close();
+		System.err.println("Thread " + Thread.currentThread().getId() + " closing channel.");
+		channel.close();
 	}
 
 	public void kill() {
 		this.running = false;
-		channel.close();
-		// try {
-		// 	LinkMessage killMessage = new LinkMessage(new ACKMessage(-1), serverProcess, serverProcess, true);
-		// 	System.out.println("kilelele " + serverProcess.getID());
-		// 	channel.alp2pSend(killMessage);
-		// }
-		// catch (IOException ioe) {
-		// 	System.out.println("Tried to kill server but socket was already closed.");
-		// }
+		try {
+			ClientMessage dummy = new ClientMessage(ClientMessage.Type.REQUEST, "KYS (in-game)");
+			LinkMessage killMessage = new LinkMessage(dummy, serverProcess, serverProcess, true);
+			System.out.println("kilelele " + serverProcess.getID());
+			channel.alp2pSend(killMessage);
+		}
+		catch (IOException ioe) {
+			System.out.println("Tried to kill server but socket was already closed.");
+		}
 	}
 }
