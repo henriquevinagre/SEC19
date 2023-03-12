@@ -15,7 +15,7 @@ public class Client {
 		this.id = id;
 	}
 
-	public void execute() throws IOException {
+	public void execute() throws IOException, IllegalStateException, InterruptedException {
 		IBFTClientAPI api = new IBFTClientAPI(id);
 
 		System.out.println("Client " + id + ": Sending request to append message: " + this.message);

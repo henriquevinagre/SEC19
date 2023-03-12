@@ -31,6 +31,7 @@ public abstract class Message {
         return this;
     }
 
+    // TODO: embed signature here
     public abstract byte[] toByteArray() throws IOException;
 
     public static Message fromByteArray(byte[] bytes) throws IOException {
@@ -66,7 +67,10 @@ public abstract class Message {
             newSignature = Signature.getInstance("SHA256withRSA");
             newSignature.initSign(key);
             newSignature.update(this.getDataBytes());
+            System.out.println("New signature: " + newSignature);
             signature = newSignature.sign();
+            System.out.println("New signature after sign: " + newSignature);
+            System.out.println("Signature after sign: " + signature);
         } catch (NoSuchAlgorithmException | SignatureException | InvalidKeyException | IOException e) {
             e.printStackTrace();
         }
@@ -78,6 +82,7 @@ public abstract class Message {
             Signature verifier = Signature.getInstance("SHA256withRSA");
             verifier.initVerify(key);
             verifier.update(this.getDataBytes());
+            System.out.println("Signature: " + signature);
             valid = verifier.verify(signature);
         } catch (SignatureException | NoSuchAlgorithmException | InvalidKeyException | IOException e) {
             e.printStackTrace();

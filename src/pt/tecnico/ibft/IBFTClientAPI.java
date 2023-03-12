@@ -21,7 +21,7 @@ public class IBFTClientAPI {
         this.channel = new AuthenticatedPerfectLink(clientProcess);
     }
 
-    public ClientMessage.Status append(String string) throws IOException {
+    public ClientMessage.Status append(String string) throws IOException, IllegalStateException, InterruptedException {
         Map<ClientMessage.Status, Integer> responses = new EnumMap<>(ClientMessage.Status.class);
 
         for (ClientMessage.Status status : ClientMessage.Status.values()) {
@@ -44,7 +44,7 @@ public class IBFTClientAPI {
 
             int amount = responses.get(message.getStatus());
 
-            if (amount + 1 == InstanceManager.getNumberOfByzantines())
+            if (amount + 1 == InstanceManager.getNumberOfByzantines() || (InstanceManager.getNumberOfByzantines() == 0))
                 return message.getStatus();
 
             responses.put(message.getStatus(), amount + 1);

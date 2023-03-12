@@ -67,7 +67,7 @@ public class InstanceManager {
             byzantineProcesses = Integer.parseInt(line);
 
             while ((line = br.readLine()) != null) {
-                if(!line.isEmpty()) {
+                if (!line.isEmpty()) {
                     switch (line.charAt(0)) {
                         case 'C':
                             clients.add(new Client(id, line.substring(2)));
@@ -106,8 +106,9 @@ public class InstanceManager {
             Thread t = new Thread(() -> {
                 try {
                     client.execute();
-                } catch (IOException e) {
-                    e.printStackTrace();
+                } catch (IOException | IllegalStateException | InterruptedException e) {
+                    e.printStackTrace(System.out);
+                    System.out.flush();
                 }
             });
             threads.add(t);
@@ -127,9 +128,9 @@ public class InstanceManager {
         }
 
         // TODO kaboom
-        // for (Server server :servers) {
-        //     server.kill();
-        // }
+        for (Server server :servers) {
+            server.kill();
+        }
 
         KeyHandler.cleanKeys();
     }

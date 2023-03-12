@@ -25,12 +25,28 @@ public class ACKMessage extends Message {
         dos.writeInt(Message.MessageType.ACK.ordinal());
 
         dos.writeInt(referId);
+        if (super.signature != null) {
+            dos.writeInt(super.signature.length);
+            dos.write(super.signature);
+        } else {
+            dos.writeInt(0); // No signature, therefore length 0
+        }
+
         return baos.toByteArray();
     }
 
     public static ACKMessage fromDataInputStream(DataInputStream dis) throws IOException {
         int referId = dis.readInt();
-        return new ACKMessage(referId);
+
+        int length = dis.readInt();
+        if (length != 0) {
+            byte[] signature = new byte[length];
+            dis.readFully(signature);
+
+            return (ACKMessage) new ACKMessage(referId).setSignature(signature);
+        } else {
+            return (ACKMessage) new ACKMessage(referId);
+        }
     }
 
     // TODO add something that makes any 2 messages always diferent

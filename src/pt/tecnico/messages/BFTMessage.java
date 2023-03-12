@@ -5,7 +5,7 @@ import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
 
-public class BFTMessage extends Message{
+public class BFTMessage extends Message {
     enum Type {
         PRE_PREPARE,
         PREPARE,

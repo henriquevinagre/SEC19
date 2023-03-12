@@ -9,7 +9,7 @@ import pt.tecnico.instances.HDLProcess;
 import pt.tecnico.messages.LinkMessage;
 
 
-// Fair loss point to point link using UDP Datagram sockets
+// Fair loss point to point link as UDP Datagram sockets
 public class FairLossLink {
     
 	/**
@@ -42,6 +42,8 @@ public class FairLossLink {
             System.err.printf("FLL: Sending message to %s:%d!%n", packet.getAddress(), packet.getPort());
             System.err.printf("FLL: With %d bytes %n", packet.getLength());
         } catch (IOException ioe) {
+            ioe.printStackTrace(System.out);
+            System.out.flush();
             throw new IllegalArgumentException("[ERROR] FLL: Sending message on the channel");
         }
     }
@@ -52,12 +54,15 @@ public class FairLossLink {
         try {
             _socket.receive(packet);
             LinkMessage message = LinkMessage.fromDatagramPacket(packet, channelOwner);
+            System.out.println("FLL: Received message with id: " + message.getId());
             System.err.printf("FLL: Receiving message from %s!%n", message.getSender());
             System.err.printf("FLL: With %d bytes %n", packet.getLength());
 
             return message;
         } catch (IOException ioe) {
-            throw new IllegalStateException("[ERROR] FLL: Could not receiving a packet on the channel");
+            ioe.printStackTrace(System.out);
+            System.out.flush();
+            throw new IllegalStateException("[ERROR] FLL: Could not receive a packet on the channel");
         }
     }
 

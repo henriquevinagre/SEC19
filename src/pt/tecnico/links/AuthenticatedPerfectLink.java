@@ -26,7 +26,7 @@ public class AuthenticatedPerfectLink {
         plInstance.pp2pSend(message);
     }
 
-    public LinkMessage alp2pDeliver() throws IOException {
+    public LinkMessage alp2pDeliver() throws IOException, IllegalStateException, InterruptedException {
         LinkMessage message;
         PublicKey senderKey;
 
@@ -34,9 +34,9 @@ public class AuthenticatedPerfectLink {
         do {
             message = plInstance.pp2pDeliver();
             senderKey = message.getSender().getPublicKey();
-            System.err.println("APL: Received message with id: " + message.getId());
-            System.out.println("APL: Received message from " + message.getSender().getID() + " with " + (message.getMessage().hasValidSignature(senderKey) ? "valid" : "invalid") + " signature");
-        } while (!message.getMessage().hasValidSignature(senderKey));
+            System.err.println("APL: Received " + (message.getTerminate()? "terminate " : "") + "message with id: " + message.getId());
+            System.out.println("APL: Received " + (message.getTerminate()? "terminate " : "") + "message from " + message.getSender().getID() + " with " + (message.getMessage().hasValidSignature(senderKey) ? "valid" : "invalid") + " signature");
+        } while (!message.getTerminate() && !message.getMessage().hasValidSignature(senderKey));
 
         assert(message != null);
 

@@ -27,7 +27,7 @@ public class BestEffortBroadcast {
         }
     }
 
-    public LinkMessage deliver() throws IOException {
+    public LinkMessage deliver() throws IOException, IllegalStateException, InterruptedException {
         return alInstance.alp2pDeliver();
     }
 

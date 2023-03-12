@@ -16,16 +16,22 @@ public class LinkMessage {
     private Message _message;
     private HDLProcess _sender;
     private HDLProcess _receiver;
+    private Boolean _terminate;
 
-    private LinkMessage(int id, Message message, HDLProcess sender, HDLProcess receiver) {
+    private LinkMessage(int id, Message message, HDLProcess sender, HDLProcess receiver, Boolean terminate) {
         _id = id;
         _message = message;
         _sender = sender;
         _receiver = receiver;
+        _terminate = terminate;
+    }
+
+    public LinkMessage(Message message, HDLProcess sender, HDLProcess receiver, Boolean terminate) {
+        this(++UNIQUE_ID, message, sender, receiver, terminate);
     }
 
     public LinkMessage(Message message, HDLProcess sender, HDLProcess receiver) {
-        this(++UNIQUE_ID, message, sender, receiver);
+        this(++UNIQUE_ID, message, sender, receiver, false);
     }
 
     public int getId() {
@@ -43,6 +49,10 @@ public class LinkMessage {
     public HDLProcess getReceiver() {
         return _receiver;
     }
+
+    public Boolean getTerminate() {
+        return _terminate;
+    }
  
     public DatagramPacket toDatagramPacket() throws IOException {
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
@@ -50,6 +60,7 @@ public class LinkMessage {
 
         dos.writeInt(_id);
         dos.writeInt(_sender.getID());
+        dos.writeBoolean(_terminate);
         byte[] messageBytes = _message.toByteArray();
         dos.write(messageBytes);
 
@@ -65,10 +76,11 @@ public class LinkMessage {
 
         int payloadId = dis.readInt();
         int senderId = dis.readInt();
+        Boolean terminate = dis.readBoolean();
         Message message = Message.fromByteArray(dis.readAllBytes());
         HDLProcess sender = new HDLProcess(senderId, packet.getAddress().getHostAddress(), packet.getPort());
 
-        return new LinkMessage(payloadId, message, sender, receiver);
+        return new LinkMessage(payloadId, message, sender, receiver, terminate);
     }
 
 
