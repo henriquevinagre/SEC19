@@ -7,7 +7,7 @@ import java.util.Map;
 
 import pt.tecnico.broadcasts.BestEffortBroadcast;
 import pt.tecnico.instances.HDLProcess;
-import pt.tecnico.instances.InstaceManager;
+import pt.tecnico.instances.InstanceManager;
 import pt.tecnico.links.AuthenticatedPerfectLink;
 import pt.tecnico.messages.ClientMessage;
 import pt.tecnico.messages.Message;
@@ -31,10 +31,10 @@ public class IBFTClientAPI {
         int numberResponses = 0;
 
         ClientMessage request = new ClientMessage(ClientMessage.Type.REQUEST, string);
-        BestEffortBroadcast broadcastChannel = new BestEffortBroadcast(channel, InstaceManager.getServerProcesses());
+        BestEffortBroadcast broadcastChannel = new BestEffortBroadcast(channel, InstanceManager.getServerProcesses());
 		broadcastChannel.broadcast(request);
 
-        while(numberResponses < InstaceManager.getTotalNumberServers()) {
+        while(numberResponses < InstanceManager.getTotalNumberServers()) {
             Message response = broadcastChannel.deliver().getMessage();
 
             if(!response.getMessageType().equals(Message.MessageType.CLIENT))
@@ -44,7 +44,7 @@ public class IBFTClientAPI {
 
             int amount = responses.get(message.getStatus());
 
-            if (amount + 1 == InstaceManager.getNumberOfByzantines())
+            if (amount + 1 == InstanceManager.getNumberOfByzantines())
                 return message.getStatus();
 
             responses.put(message.getStatus(), amount + 1);

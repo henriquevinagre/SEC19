@@ -1,9 +1,7 @@
 package pt.tecnico.links;
 
 import java.io.IOException;
-import java.security.PrivateKey;
 import java.security.PublicKey;
-
 import pt.tecnico.instances.HDLProcess;
 import pt.tecnico.messages.LinkMessage;
 
@@ -12,8 +10,6 @@ public class AuthenticatedPerfectLink {
     private PerfectLink plInstance;
     private HDLProcess channelOwner;
 
-    // Assuming the same end host public key for each process (client or server) - using signatures
-    // Maybe MAC instead
     public AuthenticatedPerfectLink(HDLProcess p) {
         channelOwner = p;
         plInstance = new PerfectLink(p);
@@ -26,6 +22,7 @@ public class AuthenticatedPerfectLink {
     public void alp2pSend(LinkMessage message) throws IOException {
         System.err.println("APL: Signing message with id: " + message.getId() + "...");
         message.getMessage().signMessage(channelOwner.getPrivateKey());
+        // TODO: Fix any process can use: KeyHandler.getPrivateKey(otherID) to get other private key;
         plInstance.pp2pSend(message);
     }
 

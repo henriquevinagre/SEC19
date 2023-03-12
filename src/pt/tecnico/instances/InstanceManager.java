@@ -5,13 +5,12 @@ import java.io.FileReader;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.io.PrintStream;
-import java.lang.Process;
 import java.util.ArrayList;
 import java.util.List;
 
 import pt.tecnico.crypto.KeyHandler;
 
-public class InstaceManager {
+public class InstanceManager {
 
     private static List<Server> servers = new ArrayList<>();
     private static List<Client> clients = new ArrayList<>();
@@ -42,21 +41,24 @@ public class InstaceManager {
         return quorum;
     }
 
-    // each line of the config file should be either (assuming all run in localhost IP):
+    // Each line of the config file should be either (assuming all run in localhost IP):
         // [Number of byzantine processes] (ALWAYS the first line)
         // C [MESSAGE]
         // S [PORT]
         // #[COMMENT]
     public static void main(String[] args) throws IOException {
-        if (args.length < 1) {
+        if (!List.of(1, 2).contains(args.length) || (args.length == 2 && !args[1].equals("-debug"))) {
 			System.err.println("Argument(s) missing!");
-			System.err.printf("Usage: java %s config_file%n", InstaceManager.class.getName());
+			System.err.printf("Usage: java %s config_file [-debug]%n", InstanceManager.class.getName());
 			return;
 		}
+        boolean debug = args.length == 2;
 
-        // Surpress link debug output
-        PrintStream nullPrintStream = new PrintStream(OutputStream.nullOutputStream());
-        System.setErr(nullPrintStream);
+        if (!debug) {
+            // Surpress link debug output
+            PrintStream nullPrintStream = new PrintStream(OutputStream.nullOutputStream());
+            System.setErr(nullPrintStream);
+        }
 
         int id = 0;
 
@@ -115,7 +117,9 @@ public class InstaceManager {
         // Wait for all clients to finish
         for (Thread thread : threads) {
             try {
+                System.err.println(thread.getName());
                 thread.join();
+                System.err.println(thread.getName() + " finished");
             } catch (InterruptedException e) {
                 thread.interrupt();
                 e.printStackTrace();
