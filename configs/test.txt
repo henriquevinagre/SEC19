@@ -2,8 +2,11 @@
 # ^ (F) byzantine servers to be supported
 
 # Clients
-C Never Gonna
-#C Give You Up
+C Never Gonna 
+C Give You Up 
+C Never Gonna 
+C Let You Down 
+C Never Gonna 
 
 # (N) Servers
 S 8000

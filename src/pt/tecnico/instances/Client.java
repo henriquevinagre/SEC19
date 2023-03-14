@@ -26,15 +26,15 @@ public class Client {
 
 		ClientMessage.Status responseStatus = null;
 		try {
-			System.out.printf("Client %d: Sending request to append the message '%s' on blockchain...\n", this.id, this.message);
+			System.out.printf("Client %d: Sending request to append the message '%s' on blockchain...%n", this.id, this.message);
 			responseStatus = api.append(this.message);
 
-			System.out.printf("Client %d: Request completed with status: %s\n", this.id, responseStatus);
+			System.out.printf("Client %d: Request completed with status: %s%n", this.id, responseStatus);
 		} catch (IllegalStateException | InterruptedException e) {
 			System.out.printf("Client %d: Request did not perform well :(", this.id);
 		} finally {
 			api.shutdown();
-			System.out.printf("Client %d: API closed\n", this.id);
+			System.out.printf("Client %d: API closed%n", this.id);
 		}
 	}
 }

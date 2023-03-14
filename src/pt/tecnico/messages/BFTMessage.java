@@ -99,4 +99,15 @@ public class BFTMessage extends Message {
                 && message.getType().equals(this.getType()) && message.getValue().equals(this.getValue());
     }
 
+    @Override
+    public int hashCode() {
+        int result = 17;
+
+        result = 31 * result + value.hashCode();
+        result = 31 * result + instance;
+        result = 31 * result + round;
+
+        return result;
+    }
+
 }

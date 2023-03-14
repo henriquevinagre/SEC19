@@ -59,7 +59,7 @@ public class InstanceManager {
         // #[COMMENT]
     public static void main(String[] args) throws IOException, IllegalStateException {
         if (!List.of(1, 2).contains(args.length) || (args.length == 2 && !args[1].equals("-debug"))) {
-			System.out.printf("Argument(s) missing!\n");
+			System.out.printf("Argument(s) missing!%n");
 			System.out.printf("Usage: java %s config_file [-debug]%n", InstanceManager.class.getName());
 			return;
 		}
@@ -125,18 +125,18 @@ public class InstanceManager {
         for (Client client : clientThreads.keySet()) {
             Thread thread = clientThreads.get(client);
             try {
-                System.err.printf("C (%s) - %s awaiting...\n", client.getHDLInstance(), thread.getName());
+                System.err.printf("C (%s) - %s awaiting...%n", client.getHDLInstance(), thread.getName());
                 thread.join();
-                System.err.printf("C (%s) - %s finished...\n", client.getHDLInstance(), thread.getName());
+                System.err.printf("C (%s) - %s finished...%n", client.getHDLInstance(), thread.getName());
             } catch (InterruptedException e) {
-                System.err.printf("C (%s) - %s interrupted...\n", client.getHDLInstance(), thread.getName());
+                System.err.printf("C (%s) - %s interrupted...%n", client.getHDLInstance(), thread.getName());
             }
         }
 
-        System.out.printf("Clients terminated\n");
+        System.out.printf("Clients terminated%n");
 
         // Signal servers to shutdown now
-        System.out.printf("Shutting down the servers...\n");
+        System.out.printf("Shutting down the servers...%n");
         for (Server server :servers) {
             server.kill();
         }
@@ -145,16 +145,19 @@ public class InstanceManager {
         for (Server server : serverThreads.keySet()) {
             Thread thread = serverThreads.get(server);
             try {
-                System.err.printf("S (%s) - %s awaiting...\n", server, thread.getName());
+                System.err.printf("S (%s) - %s awaiting...%n", server, thread.getName());
                 thread.join();
-                System.err.printf("S (%s) - %s finished...\n", server, thread.getName());
+                System.err.printf("S (%s) - %s finished...%n", server, thread.getName());
             } catch (InterruptedException e) {
-                System.err.printf("S (%s) - %s interrupted...\n", server, thread.getName());
+                System.err.printf("S (%s) - %s interrupted...%n", server, thread.getName());
             }
         }
-        System.out.printf("Servers down!\n");
+        System.out.printf("Servers down!%n");
 
         KeyHandler.cleanKeys();
-        System.out.printf("Done!\n");
+
+        System.out.printf("Blockchain State: %s%n", servers.get(0).getBlockChainState());
+
+        System.out.printf("Done!%n");
     }
 }

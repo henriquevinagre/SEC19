@@ -3,7 +3,9 @@ package pt.tecnico.instances;
 import java.net.UnknownHostException;
 import java.util.HashMap;
 import java.util.List;
+import java.util.ArrayList;
 import java.util.Map;
+import java.util.AbstractMap.SimpleImmutableEntry;
 
 import pt.tecnico.broadcasts.BestEffortBroadcast;
 import pt.tecnico.ibft.BlockchainState;
@@ -18,7 +20,7 @@ public class Server extends HDLProcess {
 	private boolean running = false;
 	private AuthenticatedPerfectLink channel;
 	private BestEffortBroadcast ibftBroadcast;
-	private Map<String, HDLProcess> pendingRequests;
+	private List<SimpleImmutableEntry<String, HDLProcess>> pendingRequests;
 	private BlockchainState blockchainState;
 
 	// IBFT related variables
@@ -33,38 +35,46 @@ public class Server extends HDLProcess {
 	public Server(int id, int port) throws UnknownHostException {
 		super(id, port);
 		channel = new AuthenticatedPerfectLink(this);
-		pendingRequests = new HashMap<>();
+		pendingRequests = new ArrayList<>();
 		prepareCount = new HashMap<>();
 		commitCount = new HashMap<>();
 		blockchainState = new BlockchainState("");
+	}
 
-		ibftBroadcast = new BestEffortBroadcast(channel, InstanceManager.getServerProcesses());
+	public String getBlockChainState() {
+		return blockchainState.getValue();
 	}
 
 	public void execute() {
-		System.out.printf("Server %d will receive messages on port %d \n", this.getID(), this.getPort());
+		ibftBroadcast = new BestEffortBroadcast(channel, InstanceManager.getServerProcesses());
+		// System.out.printf("Server %d will receive messages on port %d%n", this.getID(), this.getPort());
 
 		this.running = true;
 		boolean terminateMsgSeen = false;
 
 		// Wait for client packets
 		while (running || !terminateMsgSeen) {
-			System.out.printf("Server " + this.getID() + " Waiting for some request from a client...\n");
+			System.out.printf("Server " + this.getID() + " Waiting for some request from a client...%n");
 			try {
 				// Receives message
 				LinkMessage requestMessage = channel.deliver();
 
 				if (requestMessage.getTerminate()) {
-					System.err.printf("Server %d saw terminate\n", this.getID());
+					System.err.printf("Server %d saw terminate%n", this.getID());
 					terminateMsgSeen = true;
 					continue;
 				}
 
 				new Thread(() ->{
-					handleIncomingMessage(requestMessage);
+					try {
+						handleIncomingMessage(requestMessage);
+					} catch(IllegalStateException | NullPointerException e) {
+						e.printStackTrace();
+					}
 				}).start();
-			} catch (IllegalStateException | InterruptedException e) {
-				System.err.printf("Server %d catch %s\n", this.getID(), e.toString());
+
+			} catch (IllegalStateException | InterruptedException | NullPointerException e) {
+				System.err.printf("Server %d catch %s%n", this.getID(), e.toString());
 				continue;
 			}
 		}
@@ -103,27 +113,30 @@ public class Server extends HDLProcess {
 		}
 	}
 
+	private void startConsensus(String value) {
+		if (this.equals(InstanceManager.getLeader(instance, 0))) {
+			System.out.printf("Server %d starting instance %d of consensus %n", this.getID(), this.instance);
+			BFTMessage pre_prepare = new BFTMessage(BFTMessage.Type.PRE_PREPARE, instance, 0, value);
+			ibftBroadcast.broadcast(pre_prepare);
+			instance++;
+		}
+	}
+
 	private void handleClientRequest(LinkMessage request) {
 		// TODO : this is a barebones method, how to handle instance change??
 
 		ClientMessage requestMessage = (ClientMessage) request.getMessage();
 
-		pendingRequests.put(requestMessage.getValue(), request.getSender());
+		pendingRequests.add(new SimpleImmutableEntry<>(requestMessage.getValue(), request.getSender()));
 
-		if (this.getID() == InstanceManager.getLeader(instance, 0).getID()) {
-			System.out.printf("Server %d starting instance %d of consensus %n", this.getID(), this.instance);
-			BFTMessage pre_prepare = new BFTMessage(BFTMessage.Type.PRE_PREPARE, instance, 0, requestMessage.getValue());
-			ibftBroadcast.broadcast(pre_prepare);
-		}
+		startConsensus(requestMessage.getValue());
 	}
 
 	private void handlePrePrepare(LinkMessage pre_prepare) {
 		BFTMessage message = (BFTMessage) pre_prepare.getMessage();
 
-		System.out.printf("Server %d recieved pre-prepare from %d of consensus %d %n", this.getID(), pre_prepare.getSender().getID(), message.getInstance());
-
-		if (pre_prepare.getSender().getID() == InstanceManager.getLeader(message.getInstance(), message.getRound()).getID()) {
-			System.out.printf("Server %d recieved valid pre-prepare from %d of consensus %d %n", this.getID(), pre_prepare.getSender().getID(), message.getInstance());
+		if (pre_prepare.getSender().equals(InstanceManager.getLeader(message.getInstance(), message.getRound()))) {
+			System.out.printf("Server %d received valid pre-prepare from %d of consensus %d %n", this.getID(), pre_prepare.getSender().getID(), message.getInstance());
 			BFTMessage toBroadcast = new BFTMessage(BFTMessage.Type.PREPARE, message.getInstance(), message.getRound(), message.getValue());
 			ibftBroadcast.broadcast(toBroadcast);
 		}
@@ -132,15 +145,16 @@ public class Server extends HDLProcess {
 	private void handlePrepare(LinkMessage prepare) {
 		BFTMessage message = (BFTMessage) prepare.getMessage();
 
+		System.out.printf("Server %d received valid prepare from %d of consensus %d %n", this.getID(), prepare.getSender().getID(), message.getInstance());
+
 		synchronized(prepareCount) {
 			prepareCount.putIfAbsent(message, 0);
 
-			int count = prepareCount.get(message);
+			int count = prepareCount.get(message) + 1;
+			prepareCount.put(message, count);
 
-			prepareCount.put(message, count + 1);
-
-			if (count + 1 == InstanceManager.getQuorum()) {
-				System.out.printf("Server %d recieved valid prepare quorum of consensus %d %n", this.getID(), message.getInstance());
+			if (count == InstanceManager.getQuorum()) {
+				System.out.printf("Server %d received valid prepare quorum of consensus %d %n", this.getID(), message.getInstance());
 				prepared_round = message.getRound();
 				prepared_value = message.getValue();
 				BFTMessage toBroadcast = new BFTMessage(BFTMessage.Type.COMMIT, message.getInstance(), message.getRound(), message.getValue());
@@ -156,11 +170,10 @@ public class Server extends HDLProcess {
 			commitCount.putIfAbsent(message, 0);
 
 			int count = commitCount.get(message);
-
 			commitCount.put(message, count + 1);
 
 			if (count + 1 == InstanceManager.getQuorum()) {
-				System.out.printf("Server %d recieved valid commit quorum of consensus %d with value '%s' %n", this.getID(), message.getInstance(), message.getValue());
+				System.out.printf("Server %d received valid commit quorum of consensus %d with value '%s' %n", this.getID(), message.getInstance(), message.getValue());
 				decide(message);
 			}
 		}
@@ -171,11 +184,23 @@ public class Server extends HDLProcess {
 	}
 
 	private void decide(BFTMessage message) {
-		// maybe change to next instance here?
+		if (!this.equals(InstanceManager.getLeader(message.getInstance(), message.getRound()))) instance++;
 		blockchainState.append(message.getValue());
-		HDLProcess client = pendingRequests.remove(message.getValue());
+		int idx = -1;
+		for (int i = pendingRequests.size()-1; i >= 0; i--) {
+			if (pendingRequests.get(i).getKey().equals(message.getValue())) {
+				idx = i;
+				break;
+			}
+		}
+		if (idx == -1) return;
+		HDLProcess client = pendingRequests.remove(idx).getValue();
+
 		LinkMessage response = new LinkMessage(new ClientMessage(ClientMessage.Type.RESPONSE, ClientMessage.Status.OK), this, client);
 		channel.send(response);
+		if (!pendingRequests.isEmpty()) {
+			startConsensus(pendingRequests.get(0).getKey());
+		}
 	}
 
 	public void kill() {
@@ -183,11 +208,11 @@ public class Server extends HDLProcess {
 		try {
 			ClientMessage dummy = new ClientMessage(ClientMessage.Type.REQUEST, "KYS (in-game)");
 			LinkMessage killMessage = new LinkMessage(dummy, this, this, true);
-			System.out.printf("kilelele for %d\n", this.getID());
+			System.out.printf("kilelele for %d%n", this.getID());
 			channel.send(killMessage);
 		}
 		catch (IllegalStateException ile) {
-			System.err.printf("Tried to kill server %d but channel was already closed or receiver terminated\n", this.getID());
+			System.err.printf("Tried to kill server %d but channel was already closed or receiver terminated%n", this.getID());
 		}
 	}
 }
