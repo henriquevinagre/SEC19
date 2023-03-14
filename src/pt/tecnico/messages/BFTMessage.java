@@ -6,7 +6,7 @@ import java.io.DataOutputStream;
 import java.io.IOException;
 
 public class BFTMessage extends Message {
-    enum Type {
+    public enum Type {
         PRE_PREPARE,
         PREPARE,
         COMMIT,
@@ -24,6 +24,22 @@ public class BFTMessage extends Message {
         this.instance = instance;
         this.round = round;
         this.value = value;
+    }
+
+    public Type getType() {
+        return this.type;
+    }
+
+    public int getInstance() {
+        return this.instance;
+    }
+
+    public int getRound() {
+        return this.round;
+    }
+
+    public String getValue() {
+        return this.value;
     }
 
     public byte[] toByteArray() throws IOException {
@@ -72,7 +88,15 @@ public class BFTMessage extends Message {
 
     @Override
     public String toString() {
-        return String.format("BFT/%s(%d, %d):%s", type.toString(), instance, round, value); 
+        return String.format("BFT/%s(%d, %d):%s", type.toString(), instance, round, value);
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (!(obj instanceof BFTMessage)) return false;
+        BFTMessage message = (BFTMessage) obj;
+        return message.getInstance() == this.instance && message.getRound() == this.round
+                && message.getType().equals(this.getType()) && message.getValue().equals(this.getValue());
     }
 
 }

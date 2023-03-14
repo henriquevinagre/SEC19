@@ -3,7 +3,7 @@
 
 # Clients
 C Never Gonna
-C Give You Up
+#C Give You Up
 
 # (N) Servers
 S 8000

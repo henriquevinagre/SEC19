@@ -2,7 +2,7 @@ package pt.tecnico.ibft;
 
 public class BlockchainState {
 
-    private final String _value;
+    private String _value;
 
     public BlockchainState(String value) {
         _value = value;
@@ -10,6 +10,10 @@ public class BlockchainState {
 
     public String getValue() {
         return _value;
+    }
+
+    public void append(String newValue) {
+        _value = _value + newValue;
     }
 
     @Override

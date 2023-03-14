@@ -99,7 +99,8 @@ public class InstanceManager {
             throw new IllegalStateException("The system cannot support " + byzantineProcesses + " byzantine processes." +
                                                 "The maximum that this configuration can support is " + (servers.size() - 1) / 3 + " byzantine processes.");
 
-        quorum = servers.size() - byzantineProcesses;
+        // floor( (n+f) / 2 ) + 1
+        quorum = ((servers.size() + byzantineProcesses) / 2) + 1;
 
         Map<Server, Thread> serverThreads = new HashMap<>();
 // #pragma omp parallel for

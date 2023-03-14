@@ -82,7 +82,7 @@ public class ClientMessage extends Message {
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         DataOutputStream dos = new DataOutputStream(baos);
 
-        dos.writeInt(Message.MessageType.ACK.ordinal());
+        dos.writeInt(Message.MessageType.CLIENT.ordinal());
 
         dos.writeInt(type.ordinal());
         dos.writeInt(status.ordinal());
