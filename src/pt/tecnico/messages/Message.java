@@ -67,9 +67,7 @@ public abstract class Message {
             newSignature = Signature.getInstance("SHA256withRSA");
             newSignature.initSign(key);
             newSignature.update(this.getDataBytes());
-            System.err.println("New signature: " + newSignature);
             signature = newSignature.sign();
-            System.err.println("Signature after sign: " + signature);
         } catch (NoSuchAlgorithmException | SignatureException | InvalidKeyException | IOException e) {
             e.printStackTrace();
         }
@@ -81,7 +79,6 @@ public abstract class Message {
             Signature verifier = Signature.getInstance("SHA256withRSA");
             verifier.initVerify(key);
             verifier.update(this.getDataBytes());
-            System.err.println("Signature: " + signature);
             valid = verifier.verify(signature);
         } catch (SignatureException | NoSuchAlgorithmException | InvalidKeyException | IOException e) {
             e.printStackTrace();
@@ -90,4 +87,7 @@ public abstract class Message {
     }
 
     protected abstract byte[] getDataBytes() throws IOException;
+
+    @Override
+    public abstract String toString();
 }

@@ -6,9 +6,12 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.io.PrintStream;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import pt.tecnico.crypto.KeyHandler;
+import pt.tecnico.ibft.HDLProcess;
 
 public class InstanceManager {
 
@@ -17,16 +20,24 @@ public class InstanceManager {
     private static int byzantineProcesses;
     private static int quorum;
 
+    public static HDLProcess getHDLProcess(int id) {
+
+        return clients.stream().map(c -> c.getHDLInstance()).filter(p -> id == p.getID()).findAny().orElse(
+            servers.stream().filter(s -> id == s.getID()).findAny().orElse(
+            null));
+
+    }
+
     public static List<HDLProcess> getServerProcesses() {
         List<HDLProcess> result = new ArrayList<>();
         for(Server server : servers) {
-            result.add(server.getHDLInstance());
+            result.add(server);
         }
         return result;
     }
 
     public static HDLProcess getLeader(int consensusInstance, int round) {
-        return servers.get((consensusInstance + round) % servers.size()).getHDLInstance();
+        return servers.get((consensusInstance + round) % servers.size());
     }
 
     public static int getTotalNumberServers() {
@@ -46,10 +57,10 @@ public class InstanceManager {
         // C [MESSAGE]
         // S [PORT]
         // #[COMMENT]
-    public static void main(String[] args) throws IOException {
+    public static void main(String[] args) throws IOException, IllegalStateException {
         if (!List.of(1, 2).contains(args.length) || (args.length == 2 && !args[1].equals("-debug"))) {
-			System.err.println("Argument(s) missing!");
-			System.err.printf("Usage: java %s config_file [-debug]%n", InstanceManager.class.getName());
+			System.out.printf("Argument(s) missing!\n");
+			System.out.printf("Usage: java %s config_file [-debug]%n", InstanceManager.class.getName());
 			return;
 		}
         boolean debug = args.length == 2;
@@ -90,48 +101,59 @@ public class InstanceManager {
 
         quorum = servers.size() - byzantineProcesses;
 
-        // #pragma omp parallel for
+        Map<Server, Thread> serverThreads = new HashMap<>();
+// #pragma omp parallel for
         for (Server server : servers) {
-            new Thread(() -> {
-                try {
-                    server.execute();
-                } catch (IOException e) {
-                    e.printStackTrace();
-                }
-            }).start();
+            Thread t = new Thread(() -> {
+                server.execute();
+            });
+            t.start();
+            serverThreads.put(server, t);
         }
 
-        List<Thread> threads = new ArrayList<>();
+        Map<Client, Thread> clientThreads = new HashMap<>();
         for (Client client : clients) {
             Thread t = new Thread(() -> {
-                try {
-                    client.execute();
-                } catch (IOException | IllegalStateException | InterruptedException e) {
-                    e.printStackTrace(System.out);
-                    System.out.flush();
-                }
+                client.execute();
             });
-            threads.add(t);
             t.start();
+            clientThreads.put(client, t);
         }
 
-        // Wait for all clients to finish
-        for (Thread thread : threads) {
+        // Wait for all clients to finish first
+        for (Client client : clientThreads.keySet()) {
+            Thread thread = clientThreads.get(client);
             try {
-                System.err.println(thread.getName());
+                System.err.printf("C (%s) - %s awaiting...\n", client.getHDLInstance(), thread.getName());
                 thread.join();
-                System.err.println(thread.getName() + " finished");
+                System.err.printf("C (%s) - %s finished...\n", client.getHDLInstance(), thread.getName());
             } catch (InterruptedException e) {
-                thread.interrupt();
-                e.printStackTrace();
+                System.err.printf("C (%s) - %s interrupted...\n", client.getHDLInstance(), thread.getName());
             }
         }
 
-        // TODO kaboom
+        System.out.printf("Clients terminated\n");
+
+        // Signal servers to shutdown now
+        System.out.printf("Shutting down the servers...\n");
         for (Server server :servers) {
             server.kill();
         }
 
+        // Wait for all servers to shutdown
+        for (Server server : serverThreads.keySet()) {
+            Thread thread = serverThreads.get(server);
+            try {
+                System.err.printf("S (%s) - %s awaiting...\n", server, thread.getName());
+                thread.join();
+                System.err.printf("S (%s) - %s finished...\n", server, thread.getName());
+            } catch (InterruptedException e) {
+                System.err.printf("S (%s) - %s interrupted...\n", server, thread.getName());
+            }
+        }
+        System.out.printf("Servers down!\n");
+
         KeyHandler.cleanKeys();
+        System.out.printf("Done!\n");
     }
 }

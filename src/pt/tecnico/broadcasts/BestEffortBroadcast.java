@@ -1,9 +1,8 @@
 package pt.tecnico.broadcasts;
 
-import java.io.IOException;
 import java.util.List;
 
-import pt.tecnico.instances.HDLProcess;
+import pt.tecnico.ibft.HDLProcess;
 import pt.tecnico.links.AuthenticatedPerfectLink;
 import pt.tecnico.messages.LinkMessage;
 import pt.tecnico.messages.Message;
@@ -12,23 +11,26 @@ import pt.tecnico.messages.Message;
 public class BestEffortBroadcast {
 
     private AuthenticatedPerfectLink alInstance;
-    private List<HDLProcess> otherProcesses;
+    private List<HDLProcess> systemServers;
 
-    public BestEffortBroadcast(AuthenticatedPerfectLink alInstance, List<HDLProcess> otherProcesses) {
+    public BestEffortBroadcast(AuthenticatedPerfectLink alInstance, List<HDLProcess> systemServers) {
         this.alInstance = alInstance;
-        this.otherProcesses = otherProcesses;
+        this.systemServers = systemServers;
     }
 
-    public void broadcast(Message message) throws IOException {
-        System.err.println("BEB: Broadcasting message " + message.toString() + "...");
-        for (HDLProcess pj: otherProcesses) {
+    public void broadcast(Message message) throws IllegalStateException {
+        System.err.printf("[%s] BEB: Broadcasting message '%s'...\n", alInstance.getChannelOwner(), message);
+        for (HDLProcess pj: systemServers) {
             LinkMessage linkMessage = new LinkMessage(message, alInstance.getChannelOwner(), pj);
-            alInstance.alp2pSend(linkMessage);
+            alInstance.send(linkMessage);
         }
     }
 
-    public LinkMessage deliver() throws IOException, IllegalStateException, InterruptedException {
-        return alInstance.alp2pDeliver();
+    public Message deliver() throws IllegalStateException, InterruptedException {
+        LinkMessage linkMessage = alInstance.deliver();
+        Message message = linkMessage.getMessage();
+        System.err.printf("[%s] BEB: Received link message %s\n", alInstance.getChannelOwner(), linkMessage);
+        return message;
     }
 
     public void close() {

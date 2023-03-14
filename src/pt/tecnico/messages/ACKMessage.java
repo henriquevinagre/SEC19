@@ -58,4 +58,9 @@ public class ACKMessage extends Message {
         dos.writeInt(referId);
         return baos.toByteArray();
     }
+
+    @Override
+    public String toString() {
+        return String.format("ACK:%d", referId); 
+    }
 }

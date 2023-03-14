@@ -1,4 +1,4 @@
-package pt.tecnico.instances;
+package pt.tecnico.ibft;
 
 import java.net.DatagramSocket;
 import java.net.InetAddress;
@@ -12,9 +12,18 @@ import pt.tecnico.crypto.KeyHandler;
 
 public class HDLProcess {
     
+    public enum State {
+        ACTIVE,
+        CRASHED,    // TO SEE
+        TERMINATE
+    }
+
+
     protected int _id;
     protected InetAddress _address;
     protected int _port;
+
+    protected State _state;
 
     // other fields for crashing or (byzantine process) ...
 
@@ -22,6 +31,7 @@ public class HDLProcess {
         _id = id;
         _address = InetAddress.getByName(host);
         _port = port;
+        _state = State.ACTIVE;
     }
 
     public HDLProcess(int id, int port) throws UnknownHostException {
@@ -30,6 +40,15 @@ public class HDLProcess {
 
     public HDLProcess(int id) throws UnknownHostException {
         this(id, "localhost", getAvailablePort());
+    }
+
+    public State getState() {
+        return _state;
+    }
+
+    // Inform other HDL processes finished (!= crashed) 
+    protected void selfTerminate() {
+        _state = State.TERMINATE;
     }
 
     private static int getAvailablePort() {
@@ -61,7 +80,7 @@ public class HDLProcess {
 
     @Override
     public String toString() {
-        return String.format("%s:%d", getAddress().getHostAddress(), getPort());
+        return String.format("<%d>-%s:%d", getID(), getAddress().getHostAddress(), getPort());
     }
 
     public PublicKey getPublicKey() {

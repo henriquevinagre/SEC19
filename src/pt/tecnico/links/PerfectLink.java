@@ -1,42 +1,42 @@
 package pt.tecnico.links;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import pt.tecnico.instances.HDLProcess;
+
+import pt.tecnico.ibft.HDLProcess;
 import pt.tecnico.messages.LinkMessage;
 
 // Perfect point to point link using Stubborn links
-public class PerfectLink {
+public class PerfectLink extends Channel {
     
     private StubbornLink _slInstance;
     private List<LinkMessage> _delivered;
 
     public PerfectLink(HDLProcess p) {
-        _slInstance = new StubbornLink(p);  // TODO: Fix stubborn links to use here
+        super(p);
+        _slInstance = new StubbornLink(p);
         _delivered = new ArrayList<LinkMessage>();
     }
 
 
-    public void pp2pSend(LinkMessage message) throws IOException {
-        System.err.println("PL: Sending message with id: " + message.getId() + "...");
-        _slInstance.sp2pSend(message);
+    public void send(LinkMessage message) throws IllegalStateException {
+        System.err.printf("[%s] PL: Sending message %s\n", this.owner, message);
+        _slInstance.send(message);
     }
 
 
-    public LinkMessage pp2pDeliver() throws IllegalStateException, IOException, InterruptedException {
+    public LinkMessage deliver() throws IllegalStateException, InterruptedException {
         LinkMessage message;
 
         // Wait for a message that was not delivered yet
         do {
-            message = _slInstance.sp2pDeliver();
-            System.err.println("PL: Received message with id: " + message.getId());
+            message = _slInstance.deliver();
+            System.err.printf("[%s] PL: Received message %s\n", this.owner, message);
         } while (_delivered.contains(message));
 
         assert(message != null);
 
-        System.err.println("PL: Message not yet delivered! Delivering message...");
-
+        System.err.printf("[%s] PL: Message not yet delivered! Delivering message %d ...\n", this.owner, message.getId());
         _delivered.add(message);
         return message;
     }

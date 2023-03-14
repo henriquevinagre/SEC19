@@ -70,4 +70,9 @@ public class BFTMessage extends Message {
         return baos.toByteArray();
     }
 
+    @Override
+    public String toString() {
+        return String.format("BFT/%s(%d, %d):%s", type.toString(), instance, round, value); 
+    }
+
 }

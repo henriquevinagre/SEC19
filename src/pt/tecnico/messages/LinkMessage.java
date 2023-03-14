@@ -7,7 +7,8 @@ import java.io.DataOutputStream;
 import java.io.IOException;
 import java.net.DatagramPacket;
 
-import pt.tecnico.instances.HDLProcess;
+import pt.tecnico.ibft.HDLProcess;
+import pt.tecnico.instances.InstanceManager;
 
 public class LinkMessage {
 
@@ -78,7 +79,7 @@ public class LinkMessage {
         int senderId = dis.readInt();
         Boolean terminate = dis.readBoolean();
         Message message = Message.fromByteArray(dis.readAllBytes());
-        HDLProcess sender = new HDLProcess(senderId, packet.getAddress().getHostAddress(), packet.getPort());
+        HDLProcess sender = InstanceManager.getHDLProcess(senderId);
 
         return new LinkMessage(payloadId, message, sender, receiver, terminate);
     }
@@ -91,6 +92,11 @@ public class LinkMessage {
         LinkMessage message = (LinkMessage) obj;    // we can use a uuid too.
         return (message.getId() == this.getId() &&
                 message.getReceiver().equals(this.getReceiver()));
+    }
+
+    @Override
+    public String toString() {
+        return String.format("%d: %s --(%s)--> %s", _id, _sender, _message, _receiver); 
     }
 
 }

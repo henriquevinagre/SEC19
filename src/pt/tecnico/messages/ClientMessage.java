@@ -90,4 +90,10 @@ public class ClientMessage extends Message {
 
         return baos.toByteArray();
     }
+
+    @Override
+    public String toString() {
+        return String.format("Client/%s/%s:%s", type.toString(), status.toString(), value); 
+    }
+
 }

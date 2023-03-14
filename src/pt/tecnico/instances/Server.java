@@ -1,50 +1,39 @@
 package pt.tecnico.instances;
 
-import java.io.*;
 import java.net.UnknownHostException;
-import java.util.List;
 
-import pt.tecnico.broadcasts.BestEffortBroadcast;
+import pt.tecnico.ibft.HDLProcess;
 import pt.tecnico.links.AuthenticatedPerfectLink;
-import pt.tecnico.messages.ACKMessage;
-import pt.tecnico.messages.BFTMessage;
 import pt.tecnico.messages.ClientMessage;
 import pt.tecnico.messages.LinkMessage;
-import pt.tecnico.messages.Message;
 
 
-public class Server {
-	private int port;
+public class Server extends HDLProcess {
 	private boolean running = false;
-	private HDLProcess serverProcess;
 	private AuthenticatedPerfectLink channel;
 
 	public Server(int id, int port) throws UnknownHostException {
-		this.port = port;
-		serverProcess = new HDLProcess(id, port);
-		channel = new AuthenticatedPerfectLink(serverProcess);
+		super(id, port);
+		channel = new AuthenticatedPerfectLink(this);
 	}
 
-	public HDLProcess getHDLInstance() {
-		return this.serverProcess;
-	}
-
-	public void execute() throws IOException {
+	public void execute() {
 		// Create channel
-		BestEffortBroadcast bebInstance = new BestEffortBroadcast(channel, List.of());
-		System.out.printf("Server will receive messages on port %d %n", port);
+		// BestEffortBroadcast bebInstance = new BestEffortBroadcast(channel, List.of());
+		System.out.printf("Server %d will receive messages on port %d \n", this.getID(), this.getPort());
 
 		this.running = true;
 		boolean terminateMsgSeen = false;
+
 		// Wait for client packets
 		while (running || !terminateMsgSeen) {
-			// Receive packet
-			System.out.println("Server " + serverProcess.getID() + " Waiting for some request from a client...");
-			LinkMessage requestMessage = null;
+			System.out.printf("Server " + this.getID() + " Waiting for some request from a client...\n");
 			try {
-				requestMessage = channel.alp2pDeliver();
+				// Receives message
+				LinkMessage requestMessage = channel.deliver();
 
 				if (requestMessage.getTerminate()) {
+					System.err.printf("Server %d saw terminate\n", this.getID());
 					terminateMsgSeen = true;
 					continue;
 				}
@@ -52,28 +41,33 @@ public class Server {
 				// Get send process (info)
 				HDLProcess clientProcess = requestMessage.getSender();
 
+				// Send response to the client
 				ClientMessage response = new ClientMessage(ClientMessage.Type.RESPONSE, ClientMessage.Status.OK);
-				channel.alp2pSend(new LinkMessage(response, serverProcess, clientProcess));
-			} catch (Exception e) {
-				// e.printStackTrace();
+				channel.send(new LinkMessage(response, this, clientProcess));
+			} catch (IllegalStateException | InterruptedException e) {
+				System.err.printf("Server %d catch %s\n", this.getID(), e.toString());
 				continue;
 			}
 		}
 
-		System.err.println("Thread " + Thread.currentThread().getId() + " closing channel.");
+		System.err.printf("Server %d is closing...\n", this.getID());
+		
+		this.selfTerminate();
 		channel.close();
+
+		System.out.printf("Server %d closed\n", this.getID());
 	}
 
 	public void kill() {
 		this.running = false;
 		try {
 			ClientMessage dummy = new ClientMessage(ClientMessage.Type.REQUEST, "KYS (in-game)");
-			LinkMessage killMessage = new LinkMessage(dummy, serverProcess, serverProcess, true);
-			System.out.println("kilelele " + serverProcess.getID());
-			channel.alp2pSend(killMessage);
+			LinkMessage killMessage = new LinkMessage(dummy, this, this, true);
+			System.out.printf("kilelele for %d\n", this.getID());
+			channel.send(killMessage);
 		}
-		catch (IOException ioe) {
-			System.out.println("Tried to kill server but socket was already closed.");
+		catch (IllegalStateException ile) {
+			System.err.printf("Tried to kill server %d but channel was already closed or receiver terminated\n", this.getID());
 		}
 	}
 }

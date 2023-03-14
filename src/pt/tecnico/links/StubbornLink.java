@@ -1,81 +1,67 @@
 package pt.tecnico.links;
 
-import java.io.IOException;
-import java.util.concurrent.locks.Lock;
-import java.util.concurrent.Callable;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import java.util.ArrayList;
 import java.util.List;
 
-import pt.tecnico.instances.HDLProcess;
+import pt.tecnico.ibft.HDLProcess;
 import pt.tecnico.messages.ACKMessage;
 import pt.tecnico.messages.LinkMessage;
 import pt.tecnico.messages.Message;
 
 // Stubborn point to point link using Fair loss links
-public class StubbornLink {
+public class StubbornLink extends Channel {
 
     private static final int POOL_SIZE = 1;
     private static final int TIMEOUT_MS = 500;
 
-    private Thread deliverThread = new Thread(() -> { try {
-        continuousDeliver();
-    } catch (IOException e) {
-        // TODO Auto-generated catch block
-        e.printStackTrace();
-    }});
-
     private FairLossLink _flInstance;
 
-    private HDLProcess channelOwner;
+    private Thread deliverThread = new Thread(() -> { try {
+        continuousDeliver(); 
+    } catch (IllegalStateException ile) { // just ending deliver
+    }});
+
+
 
     private List<LinkMessage> acks = new ArrayList<>();
     private List<LinkMessage> messages = new ArrayList<>();
 
     public StubbornLink(HDLProcess p) {
-        channelOwner = p;
+        super(p);
         _flInstance = new FairLossLink(p);
         deliverThread.start();
     }
 
-    private void continuousDeliver() throws IOException {
+    private void continuousDeliver() throws IllegalStateException {
        while (true) {
-           LinkMessage delivered = _flInstance.flp2pDeliver();
-           System.err.println("msg_id = " + delivered.getId() + ", from " + delivered.getSender().getID() + ", to " + delivered.getReceiver().getID());
-           System.err.println("SL: Continuous Deliver: " + delivered.getMessage().getMessageType());
+            LinkMessage delivered = _flInstance.deliver();
+            System.err.printf("[%s] SL: Continuous Deliver: %s\n", this.owner, delivered);
 
-           if (delivered.getMessage().getMessageType() == Message.MessageType.ACK) {
+           if (delivered.getMessage().getMessageType().equals(Message.MessageType.ACK)) {
                 synchronized (acks) {
-                    System.err.println("SL: Ack added to list");
+                    System.err.printf("[%s] SL: Ack added to its list\n", this.owner);
                     acks.add(delivered);
                     acks.notifyAll();
                 }
            }
            else {
                 synchronized (messages) {
-                    System.err.println("SL: Message added to list");
+                    System.err.printf("[%s] SL: Message added to its list\n", this.owner);
                     messages.add(delivered);
                     messages.notifyAll();
                 }
            }
-
-           if (delivered.getTerminate()) break; // terminating 🤖🤖🤖
        }
     }
 
     private LinkMessage getAckMessage(int referId) throws InterruptedException {
-        System.err.println("SL: TRYING ACK-" + referId + " retrieved");
+        System.err.printf("[%s] SL: TRYING %d-ACK retrieved\n", this.owner, referId);
         while (true) {
             synchronized (acks) {
                 if (!acks.isEmpty()) {
                     for (int i = acks.size()-1; i >= 0; i--) {
                         if (((ACKMessage) acks.get(i).getMessage()).getReferId() == referId ) {
-                            System.err.println("SL: ACK-" + referId + " retrieved");
+                            System.err.printf("[%s] SL: %d-ACK retrieved\n", this.owner, referId);
                             return acks.remove(i);
                         }
                     }
@@ -90,7 +76,7 @@ public class StubbornLink {
         synchronized (messages) {
             while (true) {
                 if (!messages.isEmpty()) {
-                    System.err.println("SL: Message retrieved from list");
+                    System.err.printf("[%s] SL: Message retrieved from list\n", this.owner);
                     return messages.remove(0);
                 }
                 else
@@ -99,48 +85,16 @@ public class StubbornLink {
         }
     }
 
-    private boolean timeout(LinkMessage sendMessage) {
-        ExecutorService executor = Executors.newSingleThreadExecutor();
-        Future<LinkMessage> future = executor.submit(new Callable<LinkMessage>() {
-                public LinkMessage call() throws IOException {
-                    return _flInstance.flp2pDeliver();
-                }
-            }
-        );
-        LinkMessage receivedMessage = null;
-        try {
-            receivedMessage = future.get(TIMEOUT_MS, TimeUnit.MILLISECONDS);
-        } catch (TimeoutException | InterruptedException | ExecutionException time_e) {
-            System.err.println("SL: Timeout!!! Retransmiting more...");
-            return true;
-        } finally {
-            future.cancel(true);
-            executor.shutdownNow();
-        }
-
-        assert(receivedMessage != null);
-
-        // Verify ACK
-        if (!(receivedMessage.getMessage().getMessageType().equals(Message.MessageType.ACK)))
-            return true; // Ignoring ACK. Continue sending messages
-
-        ACKMessage ack = (ACKMessage) receivedMessage.getMessage();
-        return sendMessage.getId() != ack.getReferId();
-    }
-
-    private boolean timeout(int ms) {
+    private void timeout(int ms) {
         try {
             Thread.sleep(ms);
         } catch (InterruptedException e) {
-            e.printStackTrace();
-
-            return false;
+            e.printStackTrace(System.err);
+            System.err.flush();
         }
-
-        return true;
     }
 
-    public void sp2pSend(LinkMessage message) throws IOException {
+    public void send(LinkMessage message) throws IllegalStateException {
         // Retransmit Forever algorithm with ACK
         int count = 0;
 
@@ -148,39 +102,43 @@ public class StubbornLink {
             try {
                 this.getAckMessage(message.getId());
             } catch (InterruptedException e) {
-                e.printStackTrace();
+                // just stop the thread
             }
         });
 
         thread.start();
 
-        do {
-            if (!thread.isAlive()) break;
+        while (thread.isAlive()) {
             count++;
-            System.err.println("SL: Sending pool of " + POOL_SIZE + " messages...");
-            for (int i = 0; i < POOL_SIZE; i++)
-                _flInstance.flp2pSend(message);
             
-            if (message.getTerminate()) {
-                thread.interrupt(); break;
+            try {
+                System.err.printf("[%s] SL: Sending pool of %d messages...\n", this.owner, POOL_SIZE);
+                for (int i = 0; i < POOL_SIZE; i++)
+                    _flInstance.send(message);
+            } catch (IllegalStateException ile) {
+                System.err.printf("[%s] SL: %s\n", this.owner, ile.getMessage());
+                if (thread.isAlive()) thread.interrupt();
+                throw new IllegalStateException(ile.getMessage());
             }
-            
-        // First timeout is bogus, just wait a bit to check the ack :)
-        } while (count <= 5 && timeout(500) && thread.isAlive() && timeout(TIMEOUT_MS));
 
-        thread.interrupt();
+            if (message.getTerminate()) {
+                thread.interrupt(); 
+                return;
+            }
 
+            timeout(TIMEOUT_MS);
+        }
 
-        System.err.println("SL: ACK verified after " + count + " attempts!");
+        System.err.printf("[%s] SL: ACK verified after %d attempts!\n", this.owner, count);
     }
 
 
-    public LinkMessage sp2pDeliver() throws IOException, InterruptedException {
+    public LinkMessage deliver() throws IllegalStateException, InterruptedException {
         LinkMessage message = null;
 
         // Wait for a response message that is not an ACK
         message = this.getMessage();
-        System.err.println("SL: Received message with id: " + message.getId());
+        System.err.printf("[%s] SL: Received message with id: %d\n", this.owner, message.getId());
 
         assert(message != null);
 
@@ -191,11 +149,15 @@ public class StubbornLink {
 
         // Creating ACK for the message
         ACKMessage ack = new ACKMessage(message.getId());
-        LinkMessage ackMessage = new LinkMessage(ack, this.channelOwner, message.getSender(), false);
+        LinkMessage ackMessage = new LinkMessage(ack, this.owner, message.getSender(), false);
 
         // Using fair loss link to send the ACK
-        _flInstance.flp2pSend(ackMessage);
-        System.err.printf("SL: %s-ACK sent to %s %n", message.getId(), message.getSender());
+        try {
+            System.err.printf("[%s] SL: Sending %s\n", this.owner, ackMessage);
+            _flInstance.send(ackMessage);
+        } catch (IllegalStateException ile) {
+            // ACK was lost, not a problem since the sender still retransmiting the same message more
+        }
 
         return message;
     }

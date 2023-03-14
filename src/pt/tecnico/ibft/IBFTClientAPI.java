@@ -1,27 +1,24 @@
 package pt.tecnico.ibft;
 
-import java.io.IOException;
 import java.net.UnknownHostException;
 import java.util.EnumMap;
 import java.util.Map;
 
 import pt.tecnico.broadcasts.BestEffortBroadcast;
-import pt.tecnico.instances.HDLProcess;
 import pt.tecnico.instances.InstanceManager;
 import pt.tecnico.links.AuthenticatedPerfectLink;
 import pt.tecnico.messages.ClientMessage;
 import pt.tecnico.messages.Message;
 
-public class IBFTClientAPI {
-    private HDLProcess clientProcess;
+public class IBFTClientAPI extends HDLProcess {
     private AuthenticatedPerfectLink channel;
 
     public IBFTClientAPI(int id) throws UnknownHostException {
-        this.clientProcess = new HDLProcess(id);
-        this.channel = new AuthenticatedPerfectLink(clientProcess);
+        super(id);
+        this.channel = new AuthenticatedPerfectLink(this);
     }
 
-    public ClientMessage.Status append(String string) throws IOException, IllegalStateException, InterruptedException {
+    public ClientMessage.Status append(String string) throws IllegalStateException, InterruptedException {
         Map<ClientMessage.Status, Integer> responses = new EnumMap<>(ClientMessage.Status.class);
 
         for (ClientMessage.Status status : ClientMessage.Status.values()) {
@@ -35,7 +32,7 @@ public class IBFTClientAPI {
 		broadcastChannel.broadcast(request);
 
         while (numberResponses < InstanceManager.getTotalNumberServers()) {
-            Message response = broadcastChannel.deliver().getMessage();
+            Message response = broadcastChannel.deliver();
 
             if (!response.getMessageType().equals(Message.MessageType.CLIENT))
                 continue;
@@ -56,6 +53,7 @@ public class IBFTClientAPI {
     }
 
     public void shutdown() {
+        this.selfTerminate();
         channel.close();
     }
 }

@@ -5,12 +5,12 @@ import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.SocketException;
 
-import pt.tecnico.instances.HDLProcess;
+import pt.tecnico.ibft.HDLProcess;
 import pt.tecnico.messages.LinkMessage;
 
 
 // Fair loss point to point link as UDP Datagram sockets
-public class FairLossLink {
+public class FairLossLink extends Channel {
     
 	/**
 	 * Maximum size for a UDP packet. The field size sets a theoretical limit of
@@ -24,39 +24,62 @@ public class FairLossLink {
 	private static final int BUFFER_SIZE = MAX_UDP_DATA_SIZE;
 
     private DatagramSocket _socket;
-    private HDLProcess channelOwner;
 
     public FairLossLink(HDLProcess p) {
-        channelOwner = p;
+        super(p);
         try {
             _socket = new DatagramSocket(p.getPort(), p.getAddress());
         } catch (SocketException se) {
-            throw new IllegalStateException("[ERROR] Creating fair loss link instance on process " + p.toString());
+            throw new IllegalStateException("[ERROR] FLL: Could not create fair loss link instance on process " + p.toString());
         }
     }
 
-    public void flp2pSend(LinkMessage message) throws IOException {
+    public void send(LinkMessage message) throws IllegalStateException {
+
+        // Check if receiver HDL process is active
+        if (message.getReceiver().getState().equals(HDLProcess.State.TERMINATE)) {
+            throw new IllegalStateException(String.format("[ERROR] [%s] FLL: Could not send the %s because %s is not active!",
+                this.owner, message, message.getReceiver()));
+        }
+
+        // Try send the message
         try {
+            // Creates a UDP packet from message 
             DatagramPacket packet = message.toDatagramPacket();
+            
+            // Sending message
             _socket.send(packet);
-            System.err.printf("FLL: Sending message to %s:%d!%n", packet.getAddress(), packet.getPort());
-            System.err.printf("FLL: With %d bytes %n", packet.getLength());
+            System.err.printf("[%s] FLL: Sending packet to %s:%d with %d bytes\n", this.owner,
+                    packet.getAddress().getHostAddress(), packet.getPort(), packet.getLength());
         } catch (IOException ioe) {
-            ioe.printStackTrace(System.err);
-            System.err.flush();
-            // throw new IllegalArgumentException("[ERROR] FLL: Sending message on the channel");
+            // ioe.printStackTrace(System.out);
+            // System.out.flush();
+            throw new IllegalStateException(String.format("[ERROR] [%s] FLL: Could not send on this socket", this.owner));
         }
     }
 
-    public LinkMessage flp2pDeliver() throws IOException {
+    public LinkMessage deliver() throws IllegalStateException {
+        // Prepares receive buffer
         byte[] buffer = new byte[BUFFER_SIZE];
         DatagramPacket packet = new DatagramPacket(buffer, buffer.length);
 
-        _socket.receive(packet);
-        LinkMessage message = LinkMessage.fromDatagramPacket(packet, channelOwner);
-        System.err.println("FLL: Received message with id: " + message.getId());
-        System.err.printf("FLL: Receiving message from %s!%n", message.getSender());
-        System.err.printf("FLL: With %d bytes %n", packet.getLength());
+        // Try receive a message
+        LinkMessage message = null;        
+        try {
+            // Wait for receiving some packet bytes
+            _socket.receive(packet);
+
+            System.err.printf("[%s] FLL: Receiving packet from %s:%d with %d bytes\n", this.owner,
+                    packet.getAddress().getHostAddress(), packet.getPort(), packet.getLength());
+
+            // Serializes message
+            message = LinkMessage.fromDatagramPacket(packet, this.owner);
+
+        } catch (IOException ioe) {
+            throw new IllegalStateException(String.format("[ERROR] [%s] FLL: Could not receive on this socket", this.owner));
+        }
+
+        assert(message != null);
 
         return message;
     }

@@ -1,46 +1,41 @@
 package pt.tecnico.links;
 
-import java.io.IOException;
 import java.security.PublicKey;
-import pt.tecnico.instances.HDLProcess;
+
+import pt.tecnico.ibft.HDLProcess;
 import pt.tecnico.messages.LinkMessage;
 
 // Authenticated Perfect point to point link using Perfect links
-public class AuthenticatedPerfectLink {
+public class AuthenticatedPerfectLink extends Channel {
+
     private PerfectLink plInstance;
-    private HDLProcess channelOwner;
 
     public AuthenticatedPerfectLink(HDLProcess p) {
-        channelOwner = p;
+        super(p);
         plInstance = new PerfectLink(p);
     }
 
-    public HDLProcess getChannelOwner() {
-        return this.channelOwner;
-    }
-
-    public void alp2pSend(LinkMessage message) throws IOException {
-        System.err.println("APL: Signing message with id: " + message.getId() + "...");
-        message.getMessage().signMessage(channelOwner.getPrivateKey());
+    public void send(LinkMessage message) throws IllegalStateException {
+        System.err.printf("[%s] APL: Signing message %s\n", this.owner, message);
+        message.getMessage().signMessage(this.owner.getPrivateKey());
         // TODO: Fix any process can use: KeyHandler.getPrivateKey(otherID) to get other private key;
-        plInstance.pp2pSend(message);
+        plInstance.send(message);
     }
 
-    public LinkMessage alp2pDeliver() throws IOException, IllegalStateException, InterruptedException {
-        LinkMessage message;
-        PublicKey senderKey;
+    public LinkMessage deliver() throws IllegalStateException, InterruptedException {
+        LinkMessage message = null;
+        PublicKey senderPubKey = null;
 
         // Wait for a message that was not delivered yet with valid signature
         do {
-            message = plInstance.pp2pDeliver();
-            senderKey = message.getSender().getPublicKey();
-            System.err.println("APL: Received " + (message.getTerminate()? "terminate " : "") + "message from " + message.getSender().getID() + " with " + (message.getMessage().hasValidSignature(senderKey) ? "valid" : "invalid") + " signature");
-        } while (!message.getTerminate() && !message.getMessage().hasValidSignature(senderKey));
+            message = plInstance.deliver();
+            senderPubKey = message.getSender().getPublicKey();
+            System.err.printf("[%s] APL: Received message %s\n", this.owner, message);
+        } while (!message.getTerminate() && !message.getMessage().hasValidSignature(senderPubKey));
 
         assert(message != null);
 
-        System.err.println("APL: Message signature verified! Delivering message...");
-
+        System.err.printf("[%s] APL: Message signature verified! Delivering message %d ...\n", this.owner, message.getId());
         return message;
     }
 
