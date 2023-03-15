@@ -1,19 +1,28 @@
 package pt.tecnico.ibft;
 
+import java.util.ArrayList;
+import java.util.List;
+
 public class BlockchainState {
 
-    private String _value;
+    private List<BlockchainNode> _state;
 
-    public BlockchainState(String value) {
-        _value = value;
+    public BlockchainState() {
+        _state = new ArrayList<>();
     }
 
     public String getValue() {
-        return _value;
+        String res = "";
+
+        for (BlockchainNode value : _state) {
+            res += value.getAppendString();
+        }
+
+        return res;
     }
 
-    public void append(String newValue) {
-        _value = _value + newValue;
+    public void append(BlockchainNode newBlock) {
+        _state.add(newBlock);
     }
 
     @Override

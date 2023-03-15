@@ -19,7 +19,7 @@ public class BestEffortBroadcast {
     }
 
     public void broadcast(Message message) throws IllegalStateException {
-        System.err.printf("[%s] BEB: Broadcasting message '%s'...\n", alInstance.getChannelOwner(), message);
+        System.err.printf("[%s] BEB: Broadcasting message '%s'...%n", alInstance.getChannelOwner(), message);
         for (HDLProcess pj: systemServers) {
             LinkMessage linkMessage = new LinkMessage(message, alInstance.getChannelOwner(), pj);
             alInstance.send(linkMessage);
@@ -29,7 +29,7 @@ public class BestEffortBroadcast {
     public Message deliver() throws IllegalStateException, InterruptedException {
         LinkMessage linkMessage = alInstance.deliver();
         Message message = linkMessage.getMessage();
-        System.err.printf("[%s] BEB: Received link message %s\n", alInstance.getChannelOwner(), linkMessage);
+        System.err.printf("[%s] BEB: Received link message %s%n", alInstance.getChannelOwner(), linkMessage);
         return message;
     }
 

@@ -4,7 +4,7 @@ import java.net.UnknownHostException;
 
 import pt.tecnico.ibft.HDLProcess;
 import pt.tecnico.ibft.IBFTClientAPI;
-import pt.tecnico.messages.ClientMessage;
+import pt.tecnico.messages.ClientResponseMessage;
 
 public class Client {
 	private String message;
@@ -24,9 +24,10 @@ public class Client {
 
 	public void execute() {
 
-		ClientMessage.Status responseStatus = null;
+		ClientResponseMessage.Status responseStatus = null;
 		try {
 			System.out.printf("Client %d: Sending request to append the message '%s' on blockchain...%n", this.id, this.message);
+
 			responseStatus = api.append(this.message);
 
 			System.out.printf("Client %d: Request completed with status: %s%n", this.id, responseStatus);

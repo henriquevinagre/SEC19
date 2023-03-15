@@ -14,7 +14,8 @@ public abstract class Message {
     
     public enum MessageType {
         BFT,
-        CLIENT,
+        CLIENT_REQUEST,
+        CLIENT_RESPONSE,
         ACK
     }
 
@@ -46,9 +47,13 @@ public abstract class Message {
                 message = BFTMessage.fromDataInputStream(dis);
                 message.msgType = MessageType.BFT;
                 break;
-            case CLIENT:
-                message = ClientMessage.fromDataInputStream(dis);
-                message.msgType = MessageType.CLIENT;
+            case CLIENT_REQUEST:
+                message = ClientRequestMessage.fromDataInputStream(dis);
+                message.msgType = MessageType.CLIENT_REQUEST;
+                break;
+            case CLIENT_RESPONSE:
+                message = ClientResponseMessage.fromDataInputStream(dis);
+                message.msgType = MessageType.CLIENT_RESPONSE;
                 break;
             case ACK:
                 message = ACKMessage.fromDataInputStream(dis);

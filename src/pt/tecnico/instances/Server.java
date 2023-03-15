@@ -9,10 +9,12 @@ import java.util.AbstractMap.SimpleImmutableEntry;
 
 import pt.tecnico.broadcasts.BestEffortBroadcast;
 import pt.tecnico.ibft.BlockchainState;
+import pt.tecnico.ibft.BlockchainNode;
 import pt.tecnico.ibft.HDLProcess;
 import pt.tecnico.links.AuthenticatedPerfectLink;
 import pt.tecnico.messages.BFTMessage;
-import pt.tecnico.messages.ClientMessage;
+import pt.tecnico.messages.ClientRequestMessage;
+import pt.tecnico.messages.ClientResponseMessage;
 import pt.tecnico.messages.LinkMessage;
 
 
@@ -20,14 +22,14 @@ public class Server extends HDLProcess {
 	private boolean running = false;
 	private AuthenticatedPerfectLink channel;
 	private BestEffortBroadcast ibftBroadcast;
-	private List<SimpleImmutableEntry<String, HDLProcess>> pendingRequests;
+	private List<SimpleImmutableEntry<BlockchainNode, HDLProcess>> pendingRequests;
 	private BlockchainState blockchainState;
 
 	// IBFT related variables
 	private int instance = 0;
 	private int round;
 	private int prepared_round;
-	private String prepared_value;
+	private BlockchainNode prepared_value;
 	private Map<BFTMessage, Integer> prepareCount;
 	private Map<BFTMessage, Integer> commitCount;
 
@@ -38,7 +40,7 @@ public class Server extends HDLProcess {
 		pendingRequests = new ArrayList<>();
 		prepareCount = new HashMap<>();
 		commitCount = new HashMap<>();
-		blockchainState = new BlockchainState("");
+		blockchainState = new BlockchainState();
 	}
 
 	public String getBlockChainState() {
@@ -47,14 +49,13 @@ public class Server extends HDLProcess {
 
 	public void execute() {
 		ibftBroadcast = new BestEffortBroadcast(channel, InstanceManager.getServerProcesses());
-		// System.out.printf("Server %d will receive messages on port %d%n", this.getID(), this.getPort());
 
 		this.running = true;
 		boolean terminateMsgSeen = false;
 
 		// Wait for client packets
 		while (running || !terminateMsgSeen) {
-			System.out.printf("Server " + this.getID() + " Waiting for some request from a client...%n");
+			System.out.printf("Server %s waiting for some request from a client...%n", this);
 			try {
 				// Receives message
 				LinkMessage requestMessage = channel.deliver();
@@ -89,7 +90,7 @@ public class Server extends HDLProcess {
 
 	private void handleIncomingMessage(LinkMessage incomingMessage) {
 		switch(incomingMessage.getMessage().getMessageType()) {
-			case CLIENT:
+			case CLIENT_REQUEST:
 				handleClientRequest(incomingMessage);
 				break;
 			case BFT:
@@ -113,7 +114,7 @@ public class Server extends HDLProcess {
 		}
 	}
 
-	private void startConsensus(String value) {
+	private void startConsensus(BlockchainNode value) {
 		if (this.equals(InstanceManager.getLeader(instance, 0))) {
 			System.out.printf("Server %d starting instance %d of consensus %n", this.getID(), this.instance);
 			BFTMessage pre_prepare = new BFTMessage(BFTMessage.Type.PRE_PREPARE, instance, 0, value);
@@ -123,13 +124,13 @@ public class Server extends HDLProcess {
 	}
 
 	private void handleClientRequest(LinkMessage request) {
-		// TODO : this is a barebones method, how to handle instance change??
+		ClientRequestMessage requestMessage = (ClientRequestMessage) request.getMessage();
 
-		ClientMessage requestMessage = (ClientMessage) request.getMessage();
+		BlockchainNode value = new BlockchainNode(request.getSender().getID(), requestMessage.getValue());
 
-		pendingRequests.add(new SimpleImmutableEntry<>(requestMessage.getValue(), request.getSender()));
+		pendingRequests.add(new SimpleImmutableEntry<>(value, request.getSender()));
 
-		startConsensus(requestMessage.getValue());
+		startConsensus(value);
 	}
 
 	private void handlePrePrepare(LinkMessage pre_prepare) {
@@ -195,9 +196,9 @@ public class Server extends HDLProcess {
 		}
 		if (idx == -1) return;
 		HDLProcess client = pendingRequests.remove(idx).getValue();
-
-		LinkMessage response = new LinkMessage(new ClientMessage(ClientMessage.Type.RESPONSE, ClientMessage.Status.OK), this, client);
-		channel.send(response);
+		ClientResponseMessage response = new ClientResponseMessage(ClientResponseMessage.Status.OK, message.getInstance());
+		LinkMessage toSend = new LinkMessage(response, this, client);
+		channel.send(toSend);
 		if (!pendingRequests.isEmpty()) {
 			startConsensus(pendingRequests.get(0).getKey());
 		}
@@ -206,7 +207,7 @@ public class Server extends HDLProcess {
 	public void kill() {
 		this.running = false;
 		try {
-			ClientMessage dummy = new ClientMessage(ClientMessage.Type.REQUEST, "KYS (in-game)");
+			ClientRequestMessage dummy = new ClientRequestMessage("KYS (in-game)");
 			LinkMessage killMessage = new LinkMessage(dummy, this, this, true);
 			System.out.printf("kilelele for %d%n", this.getID());
 			channel.send(killMessage);
