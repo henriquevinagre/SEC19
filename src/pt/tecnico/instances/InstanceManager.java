@@ -37,7 +37,9 @@ public class InstanceManager {
     }
 
     public static HDLProcess getLeader(int consensusInstance, int round) {
-        return servers.get((consensusInstance + round) % servers.size());
+        // for stage 2 use this
+        // return servers.get((consensusInstance + round) % servers.size());
+        return servers.get(0);
     }
 
     public static int getTotalNumberServers() {
@@ -156,8 +158,11 @@ public class InstanceManager {
 
         KeyHandler.cleanKeys();
 
-        System.out.printf("Blockchain State: %s%n", servers.get(0).getBlockChainState());
+        for (Server server : servers) {
+            System.out.printf("Blockchain State in server " + server.getID() + ": %s%n", servers.get(0).getBlockChainState());
+        }
 
         System.out.printf("Done!%n");
+        System.exit(0);
     }
 }

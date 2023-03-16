@@ -1,0 +1,25 @@
+1
+# ^ (F) byzantine servers to be supported
+
+# Clients
+C Somebody once told me
+C The world is gonna roll me
+C I ain't the sharpest tool in the shed
+C She was looking kinda dumb
+C With the finger and her thumb
+C In the shape of an "L"
+C On her forehead
+C Well the years start coming and they don't stop coming
+C Fed to the rules and I hit the ground running
+C Didn't make sense not to live for fun
+C Your brain gets smart but your head gets dumb
+C So much to do, so much to see
+C So what's wrong with taking the backstreets?
+C You'll never know if you don't go
+C You'll never shine if you don't glow
+
+# (N) Servers
+S 8000
+S 8001
+S 8002
+S 8003

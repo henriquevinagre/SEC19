@@ -1,27 +1,22 @@
 package pt.tecnico.ibft;
 
+import java.util.HashMap;
+import java.util.Map;
 import java.util.ArrayList;
 import java.util.List;
 
 public class BlockchainState {
 
+    //private Map<Integer, BlockchainNode> _state;
     private List<BlockchainNode> _state;
 
     public BlockchainState() {
+        //_state = new HashMap<>();
         _state = new ArrayList<>();
     }
 
-    public String getValue() {
-        String res = "";
-
-        for (BlockchainNode value : _state) {
-            res += value.getAppendString();
-        }
-
-        return res;
-    }
-
-    public void append(BlockchainNode newBlock) {
+    public void append(int instance, BlockchainNode newBlock) {
+        //_state.put(instance, newBlock);
         _state.add(newBlock);
     }
 
@@ -29,6 +24,19 @@ public class BlockchainState {
     public boolean equals(Object obj) {
         if (!(obj instanceof BlockchainState)) return false;
         BlockchainState bs = (BlockchainState) obj;
-        return bs.getValue().equals(this.getValue());
+        return bs.toString().equals(this.toString());
+    }
+
+    @Override
+    public String toString() {
+        String res = "";
+
+        //for (int instance = 0; instance < _state.size(); instance++) {
+        for (BlockchainNode node : _state) {
+            //res += String.format("| %s |", _state.getOrDefault(instance, new BlockchainNode(-1, "!!!NO MESSAGE!!!")).getAppendString());
+            res += String.format("| %s |", node.getAppendString());
+        }
+
+        return res;
     }
 }

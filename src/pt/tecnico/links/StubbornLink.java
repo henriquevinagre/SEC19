@@ -16,10 +16,15 @@ public class StubbornLink extends Channel {
 
     private FairLossLink _flInstance;
 
-    private Thread deliverThread = new Thread(() -> { try {
-        continuousDeliver(); 
-    } catch (IllegalStateException ile) { // just ending deliver
-    }});
+    private Thread deliverThread = new Thread(() -> {
+        try {
+            continuousDeliver(); 
+        } catch (IllegalStateException e) { // just ending deliver
+            // e.printStackTrace();
+        } catch (InterruptedException e) {
+            return;
+        }
+    });
 
 
 
@@ -32,7 +37,7 @@ public class StubbornLink extends Channel {
         deliverThread.start();
     }
 
-    private void continuousDeliver() throws IllegalStateException {
+    private void continuousDeliver() throws IllegalStateException, InterruptedException {
        while (true) {
             LinkMessage delivered = _flInstance.deliver();
             System.err.printf("[%s] SL: Continuous Deliver: %s\n", this.owner, delivered);
@@ -85,16 +90,16 @@ public class StubbornLink extends Channel {
         }
     }
 
-    private void timeout(int ms) {
+    private boolean timeout(int ms) throws IllegalStateException {
         try {
             Thread.sleep(ms);
         } catch (InterruptedException e) {
-            e.printStackTrace(System.err);
-            System.err.flush();
+            return false;
         }
+        return true;
     }
 
-    public void send(LinkMessage message) throws IllegalStateException {
+    public void send(LinkMessage message) throws IllegalStateException, InterruptedException {
         // Retransmit Forever algorithm with ACK
         int count = 0;
 
@@ -126,7 +131,10 @@ public class StubbornLink extends Channel {
                 return;
             }
 
-            timeout(TIMEOUT_MS);
+            if (!timeout(TIMEOUT_MS)) {
+                thread.interrupt();
+                throw new IllegalStateException(String.format("[ERROR] [%s] SL: Timeout interrupted!", this.owner));
+            }
         }
 
         System.err.printf("[%s] SL: ACK verified after %d attempts!\n", this.owner, count);

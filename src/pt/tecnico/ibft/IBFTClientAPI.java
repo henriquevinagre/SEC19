@@ -1,15 +1,18 @@
 package pt.tecnico.ibft;
 
 import java.net.UnknownHostException;
-import java.util.EnumMap;
-import java.util.HashMap;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
+import java.util.AbstractMap.SimpleImmutableEntry;
+import java.util.HashMap;
 
 import pt.tecnico.broadcasts.BestEffortBroadcast;
 import pt.tecnico.instances.InstanceManager;
 import pt.tecnico.links.AuthenticatedPerfectLink;
 import pt.tecnico.messages.ClientRequestMessage;
 import pt.tecnico.messages.ClientResponseMessage;
+import pt.tecnico.messages.LinkMessage;
 import pt.tecnico.messages.Message;
 
 public class IBFTClientAPI extends HDLProcess {
@@ -21,39 +24,44 @@ public class IBFTClientAPI extends HDLProcess {
         this.channel = new AuthenticatedPerfectLink(this);
     }
 
-    public ClientResponseMessage.Status append(String string) throws IllegalStateException, InterruptedException {
+    public ClientResponseMessage append(String string) throws IllegalStateException, InterruptedException {
         // protecting against client multithread
         synchronized(this) {
 
-            Map<ClientResponseMessage.Status, Integer> responses = new EnumMap<>(ClientResponseMessage.Status.class);
-
-            int numberResponses = 0;
+            List<LinkMessage> responses = new ArrayList<>();
+            List<Integer> sendersId = new ArrayList<>();
+            Map<SimpleImmutableEntry<ClientResponseMessage.Status, Integer>, Integer> responsesCount = new HashMap<>();
 
             ClientRequestMessage request = new ClientRequestMessage(string);
             BestEffortBroadcast broadcastChannel = new BestEffortBroadcast(channel, InstanceManager.getServerProcesses());
             broadcastChannel.broadcast(request);
 
-            while (numberResponses < InstanceManager.getTotalNumberServers()) {
-                Message response = broadcastChannel.deliver();
+            // Waiting until we get MAX responses allowed
+            while (responses.size() < InstanceManager.getTotalNumberServers()) {
+                LinkMessage response = broadcastChannel.deliver();
 
-                if (!response.getMessageType().equals(Message.MessageType.CLIENT_RESPONSE))
-                    continue;
+                if (!response.getMessage().getMessageType().equals(Message.MessageType.CLIENT_RESPONSE) ||
+                    sendersId.contains(response.getSender().getID()))
+                    continue; // Ignoring response
 
-                ClientResponseMessage message = (ClientResponseMessage) response;
+                sendersId.add(response.getSender().getID());
 
-                responses.putIfAbsent(message.getStatus(), 0);
+                ClientResponseMessage message = (ClientResponseMessage) response.getMessage();
 
-                int amount = responses.get(message.getStatus());
+                SimpleImmutableEntry entry = new SimpleImmutableEntry<>(message.getStatus(), message.getTimestamp());
+                responsesCount.putIfAbsent(entry, 0);
+                
+                int count = responsesCount.get(entry) + 1;
 
-                if (amount + 1 == InstanceManager.getNumberOfByzantines() || (InstanceManager.getNumberOfByzantines() == 0))
-                    return message.getStatus();
+                responsesCount.put(entry, count);
+                
+                System.out.printf("API CLIENT %d received %s (responses number %d)%n", this._id, response, responses.size());
 
-                responses.put(message.getStatus(), amount + 1);
-
-                numberResponses++;
+                if (count == InstanceManager.getNumberOfByzantines() + 1)
+                    return message;
             }
 
-            return ClientResponseMessage.Status.REJECTED;
+            return new ClientResponseMessage(ClientResponseMessage.Status.REJECTED, null);
         }
     }
 

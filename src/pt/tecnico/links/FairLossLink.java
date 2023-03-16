@@ -34,7 +34,7 @@ public class FairLossLink extends Channel {
         }
     }
 
-    public void send(LinkMessage message) throws IllegalStateException {
+    public void send(LinkMessage message) throws IllegalStateException, InterruptedException {
 
         // Check if receiver HDL process is active
         if (message.getReceiver().getState().equals(HDLProcess.State.TERMINATE)) {
@@ -58,7 +58,7 @@ public class FairLossLink extends Channel {
         }
     }
 
-    public LinkMessage deliver() throws IllegalStateException {
+    public LinkMessage deliver() throws IllegalStateException, InterruptedException {
         // Prepares receive buffer
         byte[] buffer = new byte[BUFFER_SIZE];
         DatagramPacket packet = new DatagramPacket(buffer, buffer.length);

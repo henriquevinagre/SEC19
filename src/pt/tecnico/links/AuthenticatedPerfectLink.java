@@ -15,7 +15,7 @@ public class AuthenticatedPerfectLink extends Channel {
         plInstance = new PerfectLink(p);
     }
 
-    public void send(LinkMessage message) throws IllegalStateException {
+    public void send(LinkMessage message) throws IllegalStateException, InterruptedException {
         System.err.printf("[%s] APL: Signing message %s\n", this.owner, message);
         message.getMessage().signMessage(this.owner.getPrivateKey());
         // TODO: Fix any process can use: KeyHandler.getPrivateKey(otherID) to get other private key;

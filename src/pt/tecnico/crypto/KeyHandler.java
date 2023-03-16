@@ -15,7 +15,7 @@ public class KeyHandler {
 
     static final List<File> keysFiles = new ArrayList<File>();
 
-    private KeyHandler() {
+    private KeyHandler() throws IllegalStateException {
         throw new IllegalStateException("Utility class");
     }
 
@@ -57,11 +57,11 @@ public class KeyHandler {
             keysFiles.add(new File(privatePathName));
         }
         catch (NoSuchAlgorithmException | IOException e) {
-            e.printStackTrace();
+            throw new IllegalStateException(String.format("[ERROR] Getting key pair"));
         }
     }
 
-    public static PrivateKey getPrivateKey(int id) {
+    public static PrivateKey getPrivateKey(int id) throws IllegalStateException {
         PrivateKey key = null;
 
         try {
@@ -74,7 +74,7 @@ public class KeyHandler {
             key = KeyFactory.getInstance("RSA").generatePrivate(privateKeySpec);
         }
         catch (NoSuchAlgorithmException | InvalidKeySpecException | IOException e) {
-            e.printStackTrace();
+            throw new IllegalStateException(String.format("[ERROR] Getting private key for process %d", id));
         }
 
         return key;
@@ -93,7 +93,7 @@ public class KeyHandler {
             key = KeyFactory.getInstance("RSA").generatePublic(publicKeySpec);
         }
         catch (NoSuchAlgorithmException | InvalidKeySpecException | IOException e) {
-            e.printStackTrace();
+            throw new IllegalStateException(String.format("[ERROR] Getting public key for process %d", id));
         }
 
         return key;

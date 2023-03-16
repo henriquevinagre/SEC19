@@ -56,4 +56,9 @@ public class BlockchainNode {
 
         return result;
     }
+
+    @Override
+    public String toString() {
+        return String.format("[client:%d; value:'%s']", _clientId, _value);
+    }
 }

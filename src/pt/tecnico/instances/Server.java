@@ -27,6 +27,7 @@ public class Server extends HDLProcess {
 
 	// IBFT related variables
 	private int instance = 0;
+	private Object instanceLock = new Object();
 	private int round;
 	private int prepared_round;
 	private BlockchainNode prepared_value;
@@ -44,7 +45,7 @@ public class Server extends HDLProcess {
 	}
 
 	public String getBlockChainState() {
-		return blockchainState.getValue();
+		return blockchainState.toString();
 	}
 
 	public void execute() {
@@ -52,13 +53,14 @@ public class Server extends HDLProcess {
 
 		this.running = true;
 		boolean terminateMsgSeen = false;
+		List<Thread> activeHandlerThreads = new ArrayList<>();
 
 		// Wait for client packets
 		while (running || !terminateMsgSeen) {
 			System.out.printf("Server %s waiting for some request from a client...%n", this);
 			try {
 				// Receives message
-				LinkMessage requestMessage = channel.deliver();
+				LinkMessage requestMessage = ibftBroadcast.deliver();
 
 				if (requestMessage.getTerminate()) {
 					System.err.printf("Server %d saw terminate%n", this.getID());
@@ -67,10 +69,19 @@ public class Server extends HDLProcess {
 				}
 
 				new Thread(() ->{
+					synchronized (activeHandlerThreads) {
+						activeHandlerThreads.add(Thread.currentThread());
+					}
 					try {
 						handleIncomingMessage(requestMessage);
-					} catch(IllegalStateException | NullPointerException e) {
-						e.printStackTrace();
+					} catch (IllegalStateException | NullPointerException e) {
+						System.err.printf("Server %d %s catch %s%n", this.getID(), Thread.currentThread().getName(), e.toString());
+					} catch (InterruptedException e) {
+						e.printStackTrace(System.out);
+					} finally {
+						synchronized (activeHandlerThreads) {
+							activeHandlerThreads.remove(Thread.currentThread());
+						}
 					}
 				}).start();
 
@@ -81,14 +92,46 @@ public class Server extends HDLProcess {
 		}
 
 		System.err.printf("Server %d is closing...\n", this.getID());
-		
+
+		for (int i = 0; i < activeHandlerThreads.size(); i++) {
+			Thread t = null;
+			synchronized (activeHandlerThreads) {
+				t = activeHandlerThreads.get(i);
+			}
+
+			try {
+				t.interrupt();
+			} catch (Exception e) {
+				System.out.println(e);
+			}
+
+			try {
+				long ms = 5000; // Miliseconds to wait
+				int ns = 1; // Nanoseconds to wait
+				t.join(ms, ns);
+
+				if (t.isAlive()) {
+					System.out.println("Thread still alive even after waiting for " + ms / 1000 + ns / 1000000000 + " seconds...");
+
+					System.out.println("/--- START OF STACK TRACE OF " + t.getId() + " ---\\");
+					for (StackTraceElement ste : t.getStackTrace()) {
+						System.out.println(ste);
+					}
+					System.out.println("\\--- END OF STACK TRACE OF " + t.getId() + " ---/");
+				}
+			} catch (InterruptedException e) {
+				e.printStackTrace(System.out);
+			}
+		}
+
 		this.selfTerminate();
 		channel.close();
 
 		System.out.printf("Server %d closed\n", this.getID());
 	}
 
-	private void handleIncomingMessage(LinkMessage incomingMessage) {
+
+	private void handleIncomingMessage(LinkMessage incomingMessage) throws InterruptedException {
 		switch(incomingMessage.getMessage().getMessageType()) {
 			case CLIENT_REQUEST:
 				handleClientRequest(incomingMessage);
@@ -114,16 +157,21 @@ public class Server extends HDLProcess {
 		}
 	}
 
-	private void startConsensus(BlockchainNode value) {
-		if (this.equals(InstanceManager.getLeader(instance, 0))) {
+	// Start IBFT protocol if this process is the leader
+	private void startConsensus(BlockchainNode value) throws InterruptedException {
+		int currentInstance = 0;
+		synchronized (instanceLock) {
+			currentInstance = instance++;
+		}
+		if (this.equals(InstanceManager.getLeader(currentInstance, 0))) {
 			System.out.printf("Server %d starting instance %d of consensus %n", this.getID(), this.instance);
-			BFTMessage pre_prepare = new BFTMessage(BFTMessage.Type.PRE_PREPARE, instance, 0, value);
+			BFTMessage pre_prepare = new BFTMessage(BFTMessage.Type.PRE_PREPARE, currentInstance, 0, value);
+			System.out.printf("Leader -> Pre-Prepare instance %d%n", pre_prepare.getInstance());
 			ibftBroadcast.broadcast(pre_prepare);
-			instance++;
 		}
 	}
 
-	private void handleClientRequest(LinkMessage request) {
+	private void handleClientRequest(LinkMessage request) throws InterruptedException {
 		ClientRequestMessage requestMessage = (ClientRequestMessage) request.getMessage();
 
 		BlockchainNode value = new BlockchainNode(request.getSender().getID(), requestMessage.getValue());
@@ -133,7 +181,7 @@ public class Server extends HDLProcess {
 		startConsensus(value);
 	}
 
-	private void handlePrePrepare(LinkMessage pre_prepare) {
+	private void handlePrePrepare(LinkMessage pre_prepare) throws InterruptedException {
 		BFTMessage message = (BFTMessage) pre_prepare.getMessage();
 
 		if (pre_prepare.getSender().equals(InstanceManager.getLeader(message.getInstance(), message.getRound()))) {
@@ -143,50 +191,51 @@ public class Server extends HDLProcess {
 		}
 	}
 
-	private void handlePrepare(LinkMessage prepare) {
+	private void handlePrepare(LinkMessage prepare) throws InterruptedException {
 		BFTMessage message = (BFTMessage) prepare.getMessage();
 
 		System.out.printf("Server %d received valid prepare from %d of consensus %d %n", this.getID(), prepare.getSender().getID(), message.getInstance());
 
+		int count = 0;
 		synchronized(prepareCount) {
 			prepareCount.putIfAbsent(message, 0);
-
-			int count = prepareCount.get(message) + 1;
+			count = prepareCount.get(message) + 1;
 			prepareCount.put(message, count);
+		}
 
-			if (count == InstanceManager.getQuorum()) {
-				System.out.printf("Server %d received valid prepare quorum of consensus %d %n", this.getID(), message.getInstance());
-				prepared_round = message.getRound();
-				prepared_value = message.getValue();
-				BFTMessage toBroadcast = new BFTMessage(BFTMessage.Type.COMMIT, message.getInstance(), message.getRound(), message.getValue());
-				ibftBroadcast.broadcast(toBroadcast);
-			}
+		if (count == InstanceManager.getQuorum()) {
+			System.out.printf("Server %d received valid prepare quorum of consensus %d %n", this.getID(), message.getInstance());
+			prepared_round = message.getRound();
+			prepared_value = message.getValue();
+			BFTMessage toBroadcast = new BFTMessage(BFTMessage.Type.COMMIT, message.getInstance(), message.getRound(), message.getValue());
+			ibftBroadcast.broadcast(toBroadcast);
 		}
 	}
 
-	private void handleCommit(LinkMessage commit) {
+	private void handleCommit(LinkMessage commit) throws InterruptedException {
 		BFTMessage message = (BFTMessage) commit.getMessage();
 
+		int count = 0;
 		synchronized(commitCount) {
 			commitCount.putIfAbsent(message, 0);
+			count = commitCount.get(message) + 1;
+			commitCount.put(message, count);
+		}
 
-			int count = commitCount.get(message);
-			commitCount.put(message, count + 1);
-
-			if (count + 1 == InstanceManager.getQuorum()) {
-				System.out.printf("Server %d received valid commit quorum of consensus %d with value '%s' %n", this.getID(), message.getInstance(), message.getValue());
-				decide(message);
-			}
+		if (count == InstanceManager.getQuorum()) {
+			System.out.printf("Server %d received valid commit quorum of consensus %d with value %s %n", this.getID(), message.getInstance(), message.getValue());
+			decide(message);
 		}
 	}
 
-	private void handleRoundChange(LinkMessage round_change) {
-		// not needed for now
+	private void handleRoundChange(LinkMessage round_change) throws InterruptedException {
+		// not needed for now -> stage 2
 	}
 
-	private void decide(BFTMessage message) {
+	private void decide(BFTMessage message) throws InterruptedException {
 		if (!this.equals(InstanceManager.getLeader(message.getInstance(), message.getRound()))) instance++;
-		blockchainState.append(message.getValue());
+		//blockchainState.append(message.getInstance(), message.getValue());
+		blockchainState.append(instance, message.getValue());
 		int idx = -1;
 		for (int i = pendingRequests.size()-1; i >= 0; i--) {
 			if (pendingRequests.get(i).getKey().equals(message.getValue())) {
@@ -212,7 +261,7 @@ public class Server extends HDLProcess {
 			System.out.printf("kilelele for %d%n", this.getID());
 			channel.send(killMessage);
 		}
-		catch (IllegalStateException ile) {
+		catch (IllegalStateException | InterruptedException ile) {
 			System.err.printf("Tried to kill server %d but channel was already closed or receiver terminated%n", this.getID());
 		}
 	}

@@ -19,7 +19,7 @@ public class PerfectLink extends Channel {
     }
 
 
-    public void send(LinkMessage message) throws IllegalStateException {
+    public void send(LinkMessage message) throws IllegalStateException, InterruptedException {
         System.err.printf("[%s] PL: Sending message %s\n", this.owner, message);
         _slInstance.send(message);
     }

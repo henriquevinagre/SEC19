@@ -20,6 +20,10 @@ public class ClientResponseMessage extends Message {
         return this.status;
     }
 
+    public Integer getTimestamp() {
+        return timestamp;
+    }
+
     public ClientResponseMessage(Status status, Integer timestamp) {
         this.status = status;
         this.timestamp = timestamp;

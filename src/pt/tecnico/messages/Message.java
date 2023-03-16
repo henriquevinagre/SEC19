@@ -66,7 +66,7 @@ public abstract class Message {
         return message;
     }
 
-    public void signMessage(PrivateKey key) {
+    public void signMessage(PrivateKey key) throws IllegalStateException {
         Signature newSignature;
         try {
             newSignature = Signature.getInstance("SHA256withRSA");
@@ -74,11 +74,11 @@ public abstract class Message {
             newSignature.update(this.getDataBytes());
             signature = newSignature.sign();
         } catch (NoSuchAlgorithmException | SignatureException | InvalidKeyException | IOException e) {
-            e.printStackTrace();
+            throw new IllegalStateException(String.format("[ERROR] Signing message %s with %s", this, key));
         }
     }
 
-    public boolean hasValidSignature(PublicKey key) {
+    public boolean hasValidSignature(PublicKey key) throws IllegalStateException {
         boolean valid = false;
         try {
             Signature verifier = Signature.getInstance("SHA256withRSA");
@@ -86,7 +86,7 @@ public abstract class Message {
             verifier.update(this.getDataBytes());
             valid = verifier.verify(signature);
         } catch (SignatureException | NoSuchAlgorithmException | InvalidKeyException | IOException e) {
-            e.printStackTrace();
+            throw new IllegalStateException(String.format("[ERROR] Verifying message %s with %s", this, key));
         }
         return valid;
     }
