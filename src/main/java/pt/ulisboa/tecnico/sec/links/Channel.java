@@ -16,10 +16,10 @@ public abstract class Channel {
         return owner;
     }
 
-    public abstract void send(LinkMessage message) throws IllegalStateException, InterruptedException;
+    protected abstract void send(LinkMessage message) throws Exception;
 
-    public abstract LinkMessage deliver() throws IllegalStateException, InterruptedException;
+    protected abstract LinkMessage deliver() throws Exception;
 
-    public abstract void close();
+    protected abstract void close() throws Exception;
 
 }

@@ -32,7 +32,7 @@ public class BestEffortBroadcastTest {
         p1 = new HDLProcess(0);
         p2 = new HDLProcess(1);
         p3 = new HDLProcess(2);
-        InstanceManager.setSystemParameters(List.of(p1, p2, p3));
+        // InstanceManager.setSystemParameters(List.of(p1, p2, p3));
 
         // Surpress link debug output
         PrintStream nullPrintStream = new PrintStream(OutputStream.nullOutputStream());

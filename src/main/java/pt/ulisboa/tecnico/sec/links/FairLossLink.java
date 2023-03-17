@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.SocketException;
+import java.net.SocketTimeoutException;
 
 import pt.ulisboa.tecnico.sec.ibft.HDLProcess;
 import pt.ulisboa.tecnico.sec.messages.LinkMessage;
@@ -22,6 +23,7 @@ public class FairLossLink extends Channel {
 
 	/** Buffer size for receiving a UDP packet. */
 	private static final int BUFFER_SIZE = MAX_UDP_DATA_SIZE;
+    private static final int SOCKET_TIMEOUT_MS = 10000;
 
     private DatagramSocket _socket;
 
@@ -29,6 +31,7 @@ public class FairLossLink extends Channel {
         super(p);
         try {
             _socket = new DatagramSocket(p.getPort(), p.getAddress());
+            _socket.setSoTimeout(SOCKET_TIMEOUT_MS);
         } catch (SocketException se) {
             throw new IllegalStateException("[ERROR] FLL: Could not create fair loss link instance on process " + p.toString());
         }
@@ -52,19 +55,17 @@ public class FairLossLink extends Channel {
             System.err.printf("[%s] FLL: Sending packet to %s:%d with %d bytes\n", this.owner,
                     packet.getAddress().getHostAddress(), packet.getPort(), packet.getLength());
         } catch (IOException ioe) {
-            // ioe.printStackTrace(System.out);
-            // System.out.flush();
             throw new IllegalStateException(String.format("[ERROR] [%s] FLL: Could not send on this socket", this.owner));
         }
     }
 
-    public LinkMessage deliver() throws IllegalStateException, InterruptedException {
+    public LinkMessage deliver() throws IllegalStateException, InterruptedException, SocketTimeoutException {
         // Prepares receive buffer
         byte[] buffer = new byte[BUFFER_SIZE];
         DatagramPacket packet = new DatagramPacket(buffer, buffer.length);
 
         // Try receive a message
-        LinkMessage message = null;        
+        LinkMessage message = null;
         try {
             // Wait for receiving some packet bytes
             _socket.receive(packet);
@@ -74,7 +75,9 @@ public class FairLossLink extends Channel {
 
             // Serializes message
             message = LinkMessage.fromDatagramPacket(packet, this.owner);
-
+        } catch (SocketTimeoutException e) {
+            System.err.println("Socket timeout for " + this.owner);
+            throw e;
         } catch (IOException ioe) {
             throw new IllegalStateException(String.format("[ERROR] [%s] FLL: Could not receive on this socket", this.owner));
         }

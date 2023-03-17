@@ -4,12 +4,16 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.LinkOption;
+import java.nio.file.Path;
 import java.security.*;
 import java.security.spec.*;
 import java.util.ArrayList;
 import java.util.List;
 
 public class KeyHandler {
+    static final String KEYS_FOLDER = "keys";
     static final String PRIVATE_SUFFIX = ".key";
     static final String PUBLIC_SUFFIX = ".pub.key";
 
@@ -20,7 +24,7 @@ public class KeyHandler {
     }
 
     private static String getPrefix(int id) {
-        return "keys/instance-" + id;
+        return String.format("%s/instance-%d", KEYS_FOLDER, id);
     }
 
     private static String getPrivateKeyFile(int id) {
@@ -36,6 +40,9 @@ public class KeyHandler {
     }
 
     private static void generateKeyPair(String privatePathName, String publicPathName) {
+        if (!Files.isDirectory(Path.of(".", KEYS_FOLDER), LinkOption.NOFOLLOW_LINKS)) {
+            throw new IllegalStateException("Directory '" + KEYS_FOLDER + "' does not exist!");
+        }
         try {
             SecureRandom random;
             KeyPairGenerator keyGen = KeyPairGenerator.getInstance("RSA");
@@ -103,5 +110,6 @@ public class KeyHandler {
         for (File file : keysFiles) {
             file.delete();
         }
+        keysFiles.clear();
     }
 }

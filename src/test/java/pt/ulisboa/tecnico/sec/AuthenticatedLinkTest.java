@@ -29,7 +29,7 @@ public class AuthenticatedLinkTest  {
     public void setup() throws UnknownHostException {
         p1 = new HDLProcess(0);
         p2 = new HDLProcess(1);
-        InstanceManager.setSystemParameters(List.of(p1, p2));
+        // InstanceManager.setSystemParameters(List.of(p1, p2));
 
         // Surpress link debug output
         PrintStream nullPrintStream = new PrintStream(OutputStream.nullOutputStream());

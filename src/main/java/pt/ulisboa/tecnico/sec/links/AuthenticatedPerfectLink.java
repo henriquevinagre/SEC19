@@ -1,5 +1,6 @@
 package pt.ulisboa.tecnico.sec.links;
 
+import java.net.SocketTimeoutException;
 import java.security.PublicKey;
 
 import pt.ulisboa.tecnico.sec.ibft.HDLProcess;
@@ -22,7 +23,7 @@ public class AuthenticatedPerfectLink extends Channel {
         plInstance.send(message);
     }
 
-    public LinkMessage deliver() throws IllegalStateException, InterruptedException {
+    public LinkMessage deliver() throws IllegalStateException, InterruptedException, SocketTimeoutException {
         LinkMessage message = null;
         PublicKey senderPubKey = null;
 

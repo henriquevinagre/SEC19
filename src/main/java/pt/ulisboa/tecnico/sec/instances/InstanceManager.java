@@ -25,25 +25,30 @@ public class InstanceManager {
     public static void setSystemParameters(List<HDLProcess> processes) {
         KeyHandler.cleanKeys();
         for (HDLProcess p: processes) {
+            System.out.println("Process id -> " + p.getID() + ((getServerProcesses().contains(p))? " is a server": " is a client"));
             KeyHandler.generateKey(p.getID());
         }
         _systemsProcesses = processes;
     }
 
     public static void setSystemParameters(List<Client> clients, List<Server> servers, int f) {
+        // Keep process instances
         _clients = clients;
         _servers = servers;
+
+        // Prepare static system information
+
         _numByzantineProcesses = f;
         if (_servers.size() < (3 * _numByzantineProcesses + 1))
-        throw new IllegalStateException("The system cannot support " + _numByzantineProcesses + " byzantine processes." +
-                                            "The maximum that this configuration can support is " + (_servers.size() - 1) / 3 + " byzantine processes.");
+            throw new IllegalStateException("The system cannot support " + _numByzantineProcesses + " byzantine processes." +
+                                                "The maximum that this configuration can support is " + (_servers.size() - 1) / 3 + " byzantine processes.");
         _quorum = ((_servers.size() + _numByzantineProcesses) / 2) + 1;
+        
         List<HDLProcess> newProcesses = new ArrayList<>();
         for (Client c: clients)
             newProcesses.add(c.getHDLInstance());
         for (Server s: servers)
             newProcesses.add(s);
-
         setSystemParameters(newProcesses);
     }
 
@@ -52,11 +57,7 @@ public class InstanceManager {
     }
 
     public static List<HDLProcess> getServerProcesses() {
-        List<HDLProcess> result = new ArrayList<>();
-        for(Server server : _servers) {
-            result.add(server);
-        }
-        return result;
+        return _servers.stream().map(s -> (HDLProcess) s).toList();
     }
 
     public static HDLProcess getLeader(int consensusInstance, int round) {
@@ -73,13 +74,13 @@ public class InstanceManager {
         return _numByzantineProcesses;
     }
 
-    public static int get_quorum() {
+    public static int getQuorum() {
         return _quorum;
     }
 
     public static void runSystem() {
         if (_clients.isEmpty() || _servers.isEmpty())
-            return;
+            throw new IllegalArgumentException("No client or server processes were created");
 
         // Self execution of the system through client requests
 
@@ -114,6 +115,11 @@ public class InstanceManager {
         }
 
         System.out.printf("Clients terminated%n");
+        //try {
+            //Thread.sleep(500);
+        //} catch (InterruptedException e) {
+            //e.printStackTrace();
+        //}
 
         // Signal servers to shutdown now
         System.out.printf("Shutting down the servers...%n");
@@ -191,5 +197,6 @@ public class InstanceManager {
         setSystemParameters(clients, servers, f);
 
         runSystem();
+        System.exit(0);
     }
 }

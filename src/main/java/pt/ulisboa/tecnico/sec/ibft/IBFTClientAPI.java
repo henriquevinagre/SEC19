@@ -1,5 +1,6 @@
 package pt.ulisboa.tecnico.sec.ibft;
 
+import java.net.SocketTimeoutException;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.List;
@@ -38,7 +39,12 @@ public class IBFTClientAPI extends HDLProcess {
 
             // Waiting until we get MAX responses allowed
             while (responses.size() < InstanceManager.getTotalNumberServers()) {
-                LinkMessage response = broadcastChannel.deliver();
+                LinkMessage response = null;
+                try {
+                    response = broadcastChannel.deliver();
+                } catch (SocketTimeoutException e) {
+                    continue;
+                }
 
                 if (!response.getMessage().getMessageType().equals(Message.MessageType.CLIENT_RESPONSE) ||
                     sendersId.contains(response.getSender().getID()))
@@ -48,7 +54,7 @@ public class IBFTClientAPI extends HDLProcess {
 
                 ClientResponseMessage message = (ClientResponseMessage) response.getMessage();
 
-                SimpleImmutableEntry entry = new SimpleImmutableEntry<>(message.getStatus(), message.getTimestamp());
+                SimpleImmutableEntry<ClientResponseMessage.Status, Integer> entry = new SimpleImmutableEntry<>(message.getStatus(), message.getTimestamp());
                 responsesCount.putIfAbsent(entry, 0);
                 
                 int count = responsesCount.get(entry) + 1;

@@ -1,10 +1,13 @@
 package pt.ulisboa.tecnico.sec.instances;
 
+import java.net.SocketTimeoutException;
 import java.net.UnknownHostException;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.ArrayList;
 import java.util.Map;
+import java.util.Set;
 import java.util.AbstractMap.SimpleImmutableEntry;
 
 import pt.ulisboa.tecnico.sec.broadcasts.BestEffortBroadcast;
@@ -20,6 +23,7 @@ import pt.ulisboa.tecnico.sec.messages.LinkMessage;
 
 public class Server extends HDLProcess {
 	private boolean running = false;
+	private boolean kys = true;
 	private AuthenticatedPerfectLink channel;
 	private BestEffortBroadcast ibftBroadcast;
 	private List<SimpleImmutableEntry<BlockchainNode, HDLProcess>> pendingRequests;
@@ -31,8 +35,8 @@ public class Server extends HDLProcess {
 	private int round;
 	private int prepared_round;
 	private BlockchainNode prepared_value;
-	private Map<BFTMessage, Integer> prepareCount;
-	private Map<BFTMessage, Integer> commitCount;
+	private Map<BFTMessage, Set<Integer>> prepareCount;
+	private Map<BFTMessage, Set<Integer>> commitCount;
 
 
 	public Server(int id, int port) throws UnknownHostException {
@@ -48,29 +52,19 @@ public class Server extends HDLProcess {
 		return blockchainState.toString();
 	}
 
-	public String getBlockchainStringRaw() {
-		return blockchainState.getRawString();
-	}
-
 	public void execute() {
 		ibftBroadcast = new BestEffortBroadcast(channel, InstanceManager.getServerProcesses());
 
 		this.running = true;
-		boolean terminateMsgSeen = false;
+		this.kys = false;
 		List<Thread> activeHandlerThreads = new ArrayList<>();
 
 		// Wait for client packets
-		while (running || !terminateMsgSeen) {
-			System.err.printf("Server %s waiting for some request from a client...%n", this);
+		while (running) {
+			System.out.printf("Server %s waiting for some request from a client...%n", this);
 			try {
 				// Receives message
 				LinkMessage requestMessage = ibftBroadcast.deliver();
-
-				if (requestMessage.getTerminate()) {
-					System.err.printf("Server %d saw terminate%n", this.getID());
-					terminateMsgSeen = true;
-					continue;
-				}
 
 				new Thread(() ->{
 					synchronized (activeHandlerThreads) {
@@ -88,7 +82,12 @@ public class Server extends HDLProcess {
 						}
 					}
 				}).start();
-
+			} catch (SocketTimeoutException e) {
+				System.out.println("Socket waited for too long, maybe no more messages?");
+				if (this.kys) {
+					this.running = false;
+				}
+				continue;
 			} catch (IllegalStateException | InterruptedException | NullPointerException e) {
 				System.err.printf("Server %d catch %s%n", this.getID(), e.toString());
 				continue;
@@ -136,7 +135,7 @@ public class Server extends HDLProcess {
 
 
 	private void handleIncomingMessage(LinkMessage incomingMessage) throws InterruptedException {
-		switch(incomingMessage.getMessage().getMessageType()) {
+		switch (incomingMessage.getMessage().getMessageType()) {
 			case CLIENT_REQUEST:
 				handleClientRequest(incomingMessage);
 				break;
@@ -186,6 +185,13 @@ public class Server extends HDLProcess {
 	}
 
 	private void handlePrePrepare(LinkMessage pre_prepare) throws InterruptedException {
+		int currentInstance;
+		synchronized (instanceLock) {
+			currentInstance = instance;
+		}
+		if (!InstanceManager.getLeader(currentInstance, round).equals(pre_prepare.getSender()))
+			return;
+
 		BFTMessage message = (BFTMessage) pre_prepare.getMessage();
 
 		if (pre_prepare.getSender().equals(InstanceManager.getLeader(message.getInstance(), message.getRound()))) {
@@ -201,13 +207,13 @@ public class Server extends HDLProcess {
 		System.out.printf("Server %d received valid prepare from %d of consensus %d %n", this.getID(), prepare.getSender().getID(), message.getInstance());
 
 		int count = 0;
-		synchronized(prepareCount) {
-			prepareCount.putIfAbsent(message, 0);
-			count = prepareCount.get(message) + 1;
-			prepareCount.put(message, count);
+		synchronized (prepareCount) {
+			prepareCount.putIfAbsent(message, new HashSet<>());
+			prepareCount.get(message).add(prepare.getSender().getID());
+			count = prepareCount.get(message).size() + 1;
 		}
 
-		if (count == InstanceManager.get_quorum()) {
+		if (count == InstanceManager.getQuorum()) {
 			System.out.printf("Server %d received valid prepare quorum of consensus %d %n", this.getID(), message.getInstance());
 			prepared_round = message.getRound();
 			prepared_value = message.getValue();
@@ -220,13 +226,13 @@ public class Server extends HDLProcess {
 		BFTMessage message = (BFTMessage) commit.getMessage();
 
 		int count = 0;
-		synchronized(commitCount) {
-			commitCount.putIfAbsent(message, 0);
-			count = commitCount.get(message) + 1;
-			commitCount.put(message, count);
+		synchronized (commitCount) {
+			commitCount.putIfAbsent(message, new HashSet<>());
+			commitCount.get(message).add(commit.getSender().getID());
+			count = commitCount.get(message).size() + 1;
 		}
 
-		if (count == InstanceManager.get_quorum()) {
+		if (count == InstanceManager.getQuorum()) {
 			System.out.printf("Server %d received valid commit quorum of consensus %d with value %s %n", this.getID(), message.getInstance(), message.getValue());
 			decide(message);
 		}
@@ -237,9 +243,9 @@ public class Server extends HDLProcess {
 	}
 
 	private void decide(BFTMessage message) throws InterruptedException {
-		//if (!this.equals(InstanceManager.getLeader(message.getInstance(), message.getRound()))) instance++;
+		// Maybe useful for 2nd stage?
+		// if (!this.equals(InstanceManager.getLeader(message.getInstance(), message.getRound()))) instance++;
 		blockchainState.append(message.getInstance(), message.getValue());
-		//blockchainState.append(instance, message.getValue());
 		int idx = -1;
 		for (int i = pendingRequests.size()-1; i >= 0; i--) {
 			if (pendingRequests.get(i).getKey().equals(message.getValue())) {
@@ -258,8 +264,8 @@ public class Server extends HDLProcess {
 	}
 
 	public void kill() {
-		this.running = false;
-		try {
+		this.kys = true;
+		/*try {
 			ClientRequestMessage dummy = new ClientRequestMessage("KYS (in-game)");
 			LinkMessage killMessage = new LinkMessage(dummy, this, this, true);
 			System.out.printf("kilelele for %d%n", this.getID());
@@ -267,6 +273,6 @@ public class Server extends HDLProcess {
 		}
 		catch (IllegalStateException | InterruptedException ile) {
 			System.err.printf("Tried to kill server %d but channel was already closed or receiver terminated%n", this.getID());
-		}
+		}*/
 	}
 }

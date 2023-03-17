@@ -16,7 +16,7 @@ public class ChannelDeliverExecution implements Runnable {
     @Override
     public void run() {
         try {
-            _receivedMessage = _channelInstance.deliver();
+            // _receivedMessage = _channelInstance.deliver();
         } catch (Exception e) {
             _receivedMessage = null;
         }

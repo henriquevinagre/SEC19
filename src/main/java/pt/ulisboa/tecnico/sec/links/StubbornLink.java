@@ -1,5 +1,6 @@
 package pt.ulisboa.tecnico.sec.links;
 
+import java.net.SocketTimeoutException;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -12,21 +13,18 @@ import pt.ulisboa.tecnico.sec.messages.Message;
 public class StubbornLink extends Channel {
 
     private static final int POOL_SIZE = 1;
-    private static final long STARTING_TIMEOUT_MS = 500;
+    private static final long INITIAL_TIMEOUT_MS = 500;
+    private static final long TIMEOUT_MULTIPLIER = 2;
 
     private FairLossLink _flInstance;
 
     private Thread deliverThread = new Thread(() -> {
         try {
-            continuousDeliver(); 
-        } catch (IllegalStateException e) { // just ending deliver
-            // e.printStackTrace();
-        } catch (InterruptedException e) {
-            return;
+            continuousDeliver();
+        } catch (IllegalStateException | InterruptedException e) {
+            // just ending deliver
         }
     });
-
-
 
     private List<LinkMessage> acks = new ArrayList<>();
     private List<LinkMessage> messages = new ArrayList<>();
@@ -39,7 +37,12 @@ public class StubbornLink extends Channel {
 
     private void continuousDeliver() throws IllegalStateException, InterruptedException {
        while (true) {
-            LinkMessage delivered = _flInstance.deliver();
+            LinkMessage delivered;
+            try {
+                delivered = _flInstance.deliver();
+            } catch (SocketTimeoutException e) {
+                break;
+            }
             System.err.printf("[%s] SL: Continuous Deliver: %s\n", this.owner, delivered);
 
            if (delivered.getMessage().getMessageType().equals(Message.MessageType.ACK)) {
@@ -77,15 +80,19 @@ public class StubbornLink extends Channel {
         }
     }
 
-    private LinkMessage getMessage() throws InterruptedException {
+    private LinkMessage getMessage() throws InterruptedException, SocketTimeoutException {
         synchronized (messages) {
             while (true) {
+                if (!deliverThread.isAlive()) {
+                    throw new SocketTimeoutException();
+                }
                 if (!messages.isEmpty()) {
                     System.err.printf("[%s] SL: Message retrieved from list\n", this.owner);
                     return messages.remove(0);
                 }
-                else
-                    messages.wait();
+                else {
+                    messages.wait(INITIAL_TIMEOUT_MS, 1);
+                }
             }
         }
     }
@@ -113,7 +120,7 @@ public class StubbornLink extends Channel {
 
         thread.start();
 
-        long timeout_ms = STARTING_TIMEOUT_MS;
+        long timeout_ms = INITIAL_TIMEOUT_MS;
 
         while (thread.isAlive()) {
             count++;
@@ -137,14 +144,16 @@ public class StubbornLink extends Channel {
                 thread.interrupt();
                 throw new IllegalStateException(String.format("[ERROR] [%s] SL: Timeout interrupted!", this.owner));
             }
-            timeout_ms *= 2;
+
+            // Exponential timeout
+            timeout_ms *= TIMEOUT_MULTIPLIER;
         }
 
         System.err.printf("[%s] SL: ACK verified after %d attempts!\n", this.owner, count);
     }
 
 
-    public LinkMessage deliver() throws IllegalStateException, InterruptedException {
+    public LinkMessage deliver() throws IllegalStateException, InterruptedException, SocketTimeoutException {
         LinkMessage message = null;
 
         // Wait for a response message that is not an ACK

@@ -1,5 +1,6 @@
 package pt.ulisboa.tecnico.sec.broadcasts;
 
+import java.net.SocketTimeoutException;
 import java.util.List;
 
 import pt.ulisboa.tecnico.sec.ibft.HDLProcess;
@@ -26,7 +27,7 @@ public class BestEffortBroadcast {
         }
     }
 
-    public LinkMessage deliver() throws IllegalStateException, InterruptedException {
+    public LinkMessage deliver() throws IllegalStateException, InterruptedException, SocketTimeoutException {
         LinkMessage linkMessage = alInstance.deliver();
         System.err.printf("[%s] BEB: Received link message %s%n", alInstance.getChannelOwner(), linkMessage);
         return linkMessage;
