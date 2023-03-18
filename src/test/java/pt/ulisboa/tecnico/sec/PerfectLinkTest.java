@@ -89,6 +89,7 @@ public class PerfectLinkTest {
         pl1.close();
         pl2.close();
         KeyHandler.cleanKeys();
+        // Reset link debug output
         System.setErr(System.err);
     }
 }

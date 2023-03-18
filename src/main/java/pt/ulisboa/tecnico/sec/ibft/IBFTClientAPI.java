@@ -61,7 +61,7 @@ public class IBFTClientAPI extends HDLProcess {
 
                 responsesCount.put(entry, count);
                 
-                System.out.printf("API CLIENT %d received %s (responses number %d)%n", this._id, response, responses.size());
+                System.out.printf("API CLIENT %d received %s (responses number %d)%n", this._id, response, count);
 
                 if (count == InstanceManager.getNumberOfByzantines() + 1)
                     return message;

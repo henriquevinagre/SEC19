@@ -120,6 +120,7 @@ public class BestEffortBroadcastTest {
         beb2.close();
         beb3.close();
         KeyHandler.cleanKeys();
+        // Reset link debug output
         System.setErr(System.err);
     }
 }

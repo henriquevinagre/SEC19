@@ -87,6 +87,7 @@ public class AuthenticatedLinkTest  {
         al1.close();
         al2.close();
         KeyHandler.cleanKeys();
+        // Reset link debug output
         System.setErr(System.err);
     }
 }

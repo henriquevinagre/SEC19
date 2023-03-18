@@ -87,6 +87,7 @@ public class StubbornLinkTest {
         sl1.close();
         sl2.close();
         KeyHandler.cleanKeys();
+        // Reset link debug output
         System.setErr(System.err);
     }
 }

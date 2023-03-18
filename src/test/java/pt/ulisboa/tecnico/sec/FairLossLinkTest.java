@@ -87,6 +87,7 @@ public class FairLossLinkTest {
         fll1.close();
         fll2.close();
         KeyHandler.cleanKeys();
+        // Reset link debug output
         System.setErr(System.err);
     }
 }
