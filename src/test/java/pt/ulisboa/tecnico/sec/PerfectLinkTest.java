@@ -85,7 +85,7 @@ public class PerfectLinkTest {
 
     @After
     public void cleanup() {
-        // Reset link debug output
+        // Close program instance
         pl1.close();
         pl2.close();
         KeyHandler.cleanKeys();

@@ -34,7 +34,7 @@ public class IBFTClientAPI extends HDLProcess {
             Map<SimpleImmutableEntry<ClientResponseMessage.Status, Integer>, Integer> responsesCount = new HashMap<>();
 
             ClientRequestMessage request = new ClientRequestMessage(string);
-            BestEffortBroadcast broadcastChannel = new BestEffortBroadcast(channel, InstanceManager.getServerProcesses());
+            BestEffortBroadcast broadcastChannel = new BestEffortBroadcast(channel, InstanceManager.getAllParticipants());
             broadcastChannel.broadcast(request);
 
             // Waiting until we get MAX responses allowed

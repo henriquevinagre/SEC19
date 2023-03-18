@@ -11,6 +11,7 @@ public class Client {
 	private int id;
 	private IBFTClientAPI api;
 
+	private ClientResponseMessage response;
 
 	public Client(int id, String message) throws UnknownHostException {
 		this.message = message;
@@ -26,9 +27,12 @@ public class Client {
 		return api;
 	}
 
+	public ClientResponseMessage getResponse() {
+		return response;
+	}
+
 	public void execute() {
 
-		ClientResponseMessage response = null;
 		try {
 			System.out.printf("Client %d: Sending request to append the message '%s' on blockchain...%n", this.id, this.message);
 

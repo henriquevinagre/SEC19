@@ -83,7 +83,7 @@ public class StubbornLinkTest {
 
     @After
     public void cleanup() {
-        // Reset link debug output
+        // Close program instance
         sl1.close();
         sl2.close();
         KeyHandler.cleanKeys();

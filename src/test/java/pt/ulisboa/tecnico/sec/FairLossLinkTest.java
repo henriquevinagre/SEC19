@@ -83,7 +83,7 @@ public class FairLossLinkTest {
 
     @After
     public void cleanup() {
-        // Reset link debug output
+        // Close program instance
         fll1.close();
         fll2.close();
         KeyHandler.cleanKeys();

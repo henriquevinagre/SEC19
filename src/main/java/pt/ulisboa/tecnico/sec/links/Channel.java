@@ -1,5 +1,7 @@
 package pt.ulisboa.tecnico.sec.links;
 
+import java.net.SocketTimeoutException;
+
 import pt.ulisboa.tecnico.sec.ibft.HDLProcess;
 import pt.ulisboa.tecnico.sec.messages.LinkMessage;
 
@@ -16,10 +18,10 @@ public abstract class Channel {
         return owner;
     }
 
-    public abstract void send(LinkMessage message) throws Exception;
+    public abstract void send(LinkMessage message) throws IllegalStateException, InterruptedException;
 
-    public abstract LinkMessage deliver() throws Exception;
+    public abstract LinkMessage deliver() throws IllegalStateException, InterruptedException, SocketTimeoutException;
 
-    public abstract void close() throws Exception;
+    public abstract void close();
 
 }

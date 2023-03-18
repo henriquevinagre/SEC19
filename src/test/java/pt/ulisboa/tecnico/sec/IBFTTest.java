@@ -17,6 +17,7 @@ import pt.ulisboa.tecnico.sec.crypto.KeyHandler;
 import pt.ulisboa.tecnico.sec.instances.Client;
 import pt.ulisboa.tecnico.sec.instances.InstanceManager;
 import pt.ulisboa.tecnico.sec.instances.Server;
+import pt.ulisboa.tecnico.sec.messages.ClientResponseMessage;
 
 /**
  * Unit test for the ibft algorithm.
@@ -28,9 +29,7 @@ public class IBFTTest  {
     private List<Client> clients;
     private List<Thread> serverThreads;
     private List<Thread> clientThreads;
-    transient private static final List<String> messages = new ArrayList<String>(Arrays.asList(String.format("%s %s", "amogus", "red sus").split(" "))); // este tb é bom XD estas a usar o transient para q
-    // pesquisei no google e só vi serialization bla bla bla
-    // tou a usar pq é uma keyword grande e da pa juntar as outras :) understandable have a nice day
+    transient private static final List<String> messages = new ArrayList<String>(Arrays.asList(String.format("%s %s", "amogus", "red sus").split(" ")));
     
     // java modifiers be like *proceeds to read out entire dictionary*
     protected static final synchronized strictfp int two() {
@@ -40,7 +39,7 @@ public class IBFTTest  {
     protected static final synchronized strictfp boolean joinThread(Thread thread) {
         try {
             thread.join(JOIN_TIMEOUT_MS, 1);
-        } catch (InterruptedException e) { // new java keyword just dropped catch == cringe
+        } catch (InterruptedException e) {
             System.out.println("Join on thread " + thread.getId() + " was interrupted :(");
             e.printStackTrace();
     
@@ -57,10 +56,10 @@ public class IBFTTest  {
         System.setOut(nullPrintStream);
         System.setErr(nullPrintStream);
 
-        servers = new ArrayList<Server>(NUM_SERVERS); // C++ >>>>>>>>>>>>>>>>>>>>>>>>>>>>> java (no c++ isto inicializa >:[ ) gigachads use c++
+        servers = new ArrayList<Server>(NUM_SERVERS);
         clients = new ArrayList<Client>(messages.size());
     
-        for (int id = 0; id < NUM_SERVERS; id++) { // n inicializa :(
+        for (int id = 0; id < NUM_SERVERS; id++) {
             servers.add(new Server(id, 8000 + id));
         }
         for (int id = 0; id < messages.size(); id++) {
@@ -94,8 +93,12 @@ public class IBFTTest  {
 
         for (Server server : servers) {
             server.kill();
-            assertTrue(client.getMessage().equals(server.getBlockChainStringRaw()));
+            assertTrue("The client message was not appended to blockchain", client.getMessage().equals(server.getBlockChainStringRaw()));
         }
+
+        ClientResponseMessage response = client.getResponse();
+        assertTrue("The client message should be OK", response.getStatus().equals(ClientResponseMessage.Status.OK));
+        assertTrue("The client message should be at first block (timestamp = 0)", response.getTimestamp() == 0);
     }
     
     @Test
@@ -111,16 +114,22 @@ public class IBFTTest  {
             s.kill();
             String state = s.getBlockChainStringRaw();
             for (String message : messages) {
-                assertTrue(state.contains(message));
+                assertTrue("The blockchain state for the server " + s.getID() + " must have all client messages", state.contains(message));
             }
         }
+    }
+
+    @Test
+    public void checkCrashParticipantAlgorithm() {
+
     }
     
     @After
     public void cleanup() {
+        // Close program instance
         if (serverThreads != null) {
             for (Server server : servers) {
-                server.kill(); // not needed since we kill servers in every test, it's here because better safe than sorry xd
+                server.kill();
             }
             for (Thread t : serverThreads)
                 joinThread(t);

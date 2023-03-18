@@ -83,7 +83,7 @@ public class AuthenticatedLinkTest  {
 
     @After
     public void cleanup() {
-        // Reset link debug output
+        // Close program instance
         al1.close();
         al2.close();
         KeyHandler.cleanKeys();

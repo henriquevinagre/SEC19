@@ -32,7 +32,7 @@ public class Server extends HDLProcess {
 	// IBFT related variables
 	private int instance = 0;
 	private Object instanceLock = new Object();
-	private int round;
+	private int round = 0;
 	private int prepared_round;
 	private BlockchainNode prepared_value;
 	private Map<BFTMessage, Set<Integer>> prepareCount;
@@ -57,7 +57,7 @@ public class Server extends HDLProcess {
     }
 
 	public void execute() {
-		ibftBroadcast = new BestEffortBroadcast(channel, InstanceManager.getServerProcesses());
+		ibftBroadcast = new BestEffortBroadcast(channel, InstanceManager.getAllParticipants());
 
 		this.running = true;
 		this.kys = false;
@@ -170,7 +170,7 @@ public class Server extends HDLProcess {
 		synchronized (instanceLock) {
 			currentInstance = instance++;
 		}
-		if (this.equals(InstanceManager.getLeader(currentInstance, 0))) {
+		if (this.equals(InstanceManager.getLeader(currentInstance, round))) {
 			System.out.printf("Server %d starting instance %d of consensus %n", this.getID(), this.instance);
 			BFTMessage pre_prepare = new BFTMessage(BFTMessage.Type.PRE_PREPARE, currentInstance, 0, value);
 			System.out.printf("Leader -> Pre-Prepare instance %d%n", pre_prepare.getInstance());

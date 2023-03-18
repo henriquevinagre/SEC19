@@ -27,7 +27,6 @@ public class InstanceManager {
     public static void setSystemParameters(List<HDLProcess> processes) {
         KeyHandler.cleanKeys();
         for (HDLProcess p: processes) {
-            System.err.println("Process id -> " + p.getID() + ((getServerProcesses().contains(p))? " is a server": " is a client"));
             KeyHandler.generateKeys(p.getID());
         }
         _systemsProcesses = processes;
@@ -58,7 +57,11 @@ public class InstanceManager {
         return _systemsProcesses.stream().filter(p -> p.getID() == id).findAny().orElse(null);
     }
 
-    public static List<HDLProcess> getServerProcesses() {
+    public static List<HDLProcess> getSystemProcesses() {
+        return _systemsProcesses;
+    }
+
+    public static List<HDLProcess> getAllParticipants() {
         return _servers.stream().map(s -> (HDLProcess) s).collect(Collectors.toList());
     }
 
