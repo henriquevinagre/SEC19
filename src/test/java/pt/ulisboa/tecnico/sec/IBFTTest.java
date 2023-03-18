@@ -2,6 +2,7 @@ package pt.ulisboa.tecnico.sec;
 
 import static org.junit.Assert.assertTrue;
 
+import java.lang.Math;
 import java.io.OutputStream;
 import java.io.PrintStream;
 import java.net.UnknownHostException;
@@ -66,9 +67,9 @@ public class IBFTTest  {
             clients.add(new Client(id + NUM_SERVERS, messages.get(id)));
         }
     
-        InstanceManager.setSystemParameters(clients, servers, 1);
+        InstanceManager.setSystemParameters(clients, servers, (int) Math.floor((NUM_SERVERS - 1) / 3));
 
-        System.out.println("Q= " + InstanceManager.getQuorum());
+        System.out.println("F= " + InstanceManager.getNumberOfByzantines() + ", Q= " + InstanceManager.getQuorum());
     
         serverThreads = new ArrayList<Thread>(servers.size());
         clientThreads = new ArrayList<Thread>(clients.size());
@@ -113,13 +114,13 @@ public class IBFTTest  {
     @Test
     public void checkMultiClientAlgorithm() {
         // propagate client requests simultanly
-        for (Thread thread : clientThreads) {
-            thread.start();
+        for (Thread clientThread : clientThreads) {
+            clientThread.start();
         }
 
         // waits for clients to receive some response
-        for (Thread thread : clientThreads) {
-            joinThread(thread);
+        for (Thread clientThread : clientThreads) {
+            joinThread(clientThread);
         }
 
         // signals servers to shutdow now
@@ -157,8 +158,8 @@ public class IBFTTest  {
         // Tolerating a byzantine process with 4 servers (Q = 3)
 
         // propagate client requests simultanly
-        for (Thread thread : clientThreads) {
-            thread.start();
+        for (Thread clientThread : clientThreads) {
+            clientThread.start();
         }
 
         Integer byzantineID = 1;  // not the leader
@@ -170,14 +171,13 @@ public class IBFTTest  {
         byzantineThread.interrupt();
     
         // waits for clients to receive some response
-        for (Thread thread : clientThreads) {
-            joinThread(thread);
+        for (Thread clientThread : clientThreads) {
+            joinThread(clientThread);
         }
 
         // signals servers to shutdow now
         for (Server s : servers) {
-            if (!s.equals(byzantineParticipant))
-                s.kill();
+            s.kill();
         }
 
         // waits for server to shutdown successfully
@@ -212,8 +212,9 @@ public class IBFTTest  {
             for (Server server : servers) {
                 server.kill();
             }
-            for (Thread t : serverThreads)
-                joinThread(t);
+            for (Thread serverThread : serverThreads) {
+                joinThread(serverThread);
+            }
         }
 
         KeyHandler.cleanKeys();
