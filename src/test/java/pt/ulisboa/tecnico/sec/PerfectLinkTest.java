@@ -11,6 +11,7 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
+import pt.ulisboa.tecnico.sec.crypto.KeyHandler;
 import pt.ulisboa.tecnico.sec.ibft.HDLProcess;
 import pt.ulisboa.tecnico.sec.instances.InstanceManager;
 import pt.ulisboa.tecnico.sec.links.PerfectLink;
@@ -22,37 +23,34 @@ import pt.ulisboa.tecnico.sec.messages.Message;
  * Unit test for perfect point to point link.
  */
 public class PerfectLinkTest {
-    private static HDLProcess p1;
-    private static HDLProcess p2;
+    private HDLProcess p1;
+    private HDLProcess p2;
+    private PerfectLink pl1;
+    private PerfectLink pl2;
 
     @Before
     public void setup() throws UnknownHostException {
-        p1 = new HDLProcess(0);
-        p2 = new HDLProcess(1);
-        // InstanceManager.setSystemParameters(List.of(p1, p2));
-
         // Surpress link debug output
         PrintStream nullPrintStream = new PrintStream(OutputStream.nullOutputStream());
         System.setErr(nullPrintStream);
+        
+        p1 = new HDLProcess(0);
+        p2 = new HDLProcess(1);
+
+        InstanceManager.setSystemParameters(List.of(p1, p2));
+
+        pl1 = new PerfectLink(p1);
+        pl2 = new PerfectLink(p2);
     }
 
     @Test
     public void checkCreate() {
-        PerfectLink pl1 = new PerfectLink(p1);
-        PerfectLink pl2 = new PerfectLink(p2);
-
         assertTrue(pl1.getChannelOwner() == p1);
         assertTrue(pl2.getChannelOwner() == p2);
-
-        pl1.close();
-        pl2.close();
     }
 
     @Test
     public void checkComunication() throws InterruptedException {
-        PerfectLink pl1 = new PerfectLink(p1);
-        PerfectLink pl2 = new PerfectLink(p2);
-
         // p1 prepares request
         String value = "Hello p2!";
         ClientRequestMessage p1Message = new ClientRequestMessage(value);
@@ -82,15 +80,15 @@ public class PerfectLinkTest {
 
         assertTrue("Received message differs from the one p1 sent", p2Message.getValue().equals(value));
 
-        // assertTrue("Deliver list of the channel did'nt keep receive message", pl2.getDeliveredList().contains(receivedMessage));
-
-        pl1.close();
-        pl2.close();
+        assertTrue("Deliver list of the channel didn't keep receive message", pl2.getDeliveredList().contains(receivedMessage));
     }
 
     @After
     public void cleanup() {
         // Reset link debug output
+        pl1.close();
+        pl2.close();
+        KeyHandler.cleanKeys();
         System.setErr(System.err);
     }
 }

@@ -36,40 +36,40 @@ public class StubbornLink extends Channel {
     }
 
     private void continuousDeliver() throws IllegalStateException, InterruptedException {
-       while (true) {
+        while (true) {
             LinkMessage delivered;
             try {
                 delivered = _flInstance.deliver();
             } catch (SocketTimeoutException e) {
                 break;
             }
-            System.err.printf("[%s] SL: Continuous Deliver: %s\n", this.owner, delivered);
+            System.err.printf("[%s] SL: Continuous Deliver: %s%n", this.owner, delivered);
 
-           if (delivered.getMessage().getMessageType().equals(Message.MessageType.ACK)) {
+            if (delivered.getMessage().getMessageType().equals(Message.MessageType.ACK)) {
                 synchronized (acks) {
-                    System.err.printf("[%s] SL: Ack added to its list\n", this.owner);
+                    System.err.printf("[%s] SL: Ack added to its list%n", this.owner);
                     acks.add(delivered);
                     acks.notifyAll();
                 }
-           }
-           else {
+            }
+            else {
                 synchronized (messages) {
-                    System.err.printf("[%s] SL: Message added to its list\n", this.owner);
+                    System.err.printf("[%s] SL: Message added to its list%n", this.owner);
                     messages.add(delivered);
                     messages.notifyAll();
                 }
-           }
-       }
+            }
+        }
     }
 
     private LinkMessage getAckMessage(int referId) throws InterruptedException {
-        System.err.printf("[%s] SL: TRYING %d-ACK retrieved\n", this.owner, referId);
+        System.err.printf("[%s] SL: TRYING %d-ACK retrieved%n", this.owner, referId);
         while (true) {
             synchronized (acks) {
                 if (!acks.isEmpty()) {
                     for (int i = acks.size()-1; i >= 0; i--) {
                         if (((ACKMessage) acks.get(i).getMessage()).getReferId() == referId ) {
-                            System.err.printf("[%s] SL: %d-ACK retrieved\n", this.owner, referId);
+                            System.err.printf("[%s] SL: %d-ACK retrieved%n", this.owner, referId);
                             return acks.remove(i);
                         }
                     }
@@ -87,7 +87,7 @@ public class StubbornLink extends Channel {
                     throw new SocketTimeoutException();
                 }
                 if (!messages.isEmpty()) {
-                    System.err.printf("[%s] SL: Message retrieved from list\n", this.owner);
+                    System.err.printf("[%s] SL: Message retrieved from list%n", this.owner);
                     return messages.remove(0);
                 }
                 else {
@@ -126,11 +126,11 @@ public class StubbornLink extends Channel {
             count++;
             
             try {
-                System.err.printf("[%s] SL: Sending pool of %d messages...\n", this.owner, POOL_SIZE);
+                System.err.printf("[%s] SL: Sending pool of %d messages...%n", this.owner, POOL_SIZE);
                 for (int i = 0; i < POOL_SIZE; i++)
                     _flInstance.send(message);
             } catch (IllegalStateException ile) {
-                System.err.printf("[%s] SL: %s\n", this.owner, ile.getMessage());
+                System.err.printf("[%s] SL: %s%n", this.owner, ile.getMessage());
                 if (thread.isAlive()) thread.interrupt();
                 throw new IllegalStateException(ile.getMessage());
             }
@@ -149,7 +149,7 @@ public class StubbornLink extends Channel {
             timeout_ms *= TIMEOUT_MULTIPLIER;
         }
 
-        System.err.printf("[%s] SL: ACK verified after %d attempts!\n", this.owner, count);
+        System.err.printf("[%s] SL: ACK verified after %d attempts!%n", this.owner, count);
     }
 
 
@@ -158,7 +158,7 @@ public class StubbornLink extends Channel {
 
         // Wait for a response message that is not an ACK
         message = this.getMessage();
-        System.err.printf("[%s] SL: Received message with id: %d\n", this.owner, message.getId());
+        System.err.printf("[%s] SL: Received message with id: %d%n", this.owner, message.getId());
 
         assert(message != null);
 
@@ -173,9 +173,10 @@ public class StubbornLink extends Channel {
 
         // Using fair loss link to send the ACK
         try {
-            System.err.printf("[%s] SL: Sending %s\n", this.owner, ackMessage);
+            System.err.printf("[%s] SL: Sending %s%n", this.owner, ackMessage);
             _flInstance.send(ackMessage);
         } catch (IllegalStateException ile) {
+            ile.printStackTrace();
             // ACK was lost, not a problem since the sender still retransmiting the same message more
         }
 

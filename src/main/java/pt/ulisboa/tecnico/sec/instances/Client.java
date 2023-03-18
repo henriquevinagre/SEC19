@@ -18,6 +18,10 @@ public class Client {
 		api = new IBFTClientAPI(id);
 	}
 
+    public String getMessage() {
+        return message;
+    }
+
 	public HDLProcess getHDLInstance() {
 		return api;
 	}

@@ -16,10 +16,10 @@ public abstract class Channel {
         return owner;
     }
 
-    protected abstract void send(LinkMessage message) throws Exception;
+    public abstract void send(LinkMessage message) throws Exception;
 
-    protected abstract LinkMessage deliver() throws Exception;
+    public abstract LinkMessage deliver() throws Exception;
 
-    protected abstract void close() throws Exception;
+    public abstract void close() throws Exception;
 
 }

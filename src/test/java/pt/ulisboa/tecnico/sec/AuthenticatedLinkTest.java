@@ -11,6 +11,7 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
+import pt.ulisboa.tecnico.sec.crypto.KeyHandler;
 import pt.ulisboa.tecnico.sec.ibft.HDLProcess;
 import pt.ulisboa.tecnico.sec.instances.InstanceManager;
 import pt.ulisboa.tecnico.sec.links.AuthenticatedPerfectLink;
@@ -22,49 +23,46 @@ import pt.ulisboa.tecnico.sec.messages.Message;
  * Unit test for authenticated perfect point to point link.
  */
 public class AuthenticatedLinkTest  {
-    private static HDLProcess p1;
-    private static HDLProcess p2;
+    private HDLProcess p1;
+    private HDLProcess p2;
+    private AuthenticatedPerfectLink al1;
+    private AuthenticatedPerfectLink al2;
 
     @Before
     public void setup() throws UnknownHostException {
-        p1 = new HDLProcess(0);
-        p2 = new HDLProcess(1);
-        // InstanceManager.setSystemParameters(List.of(p1, p2));
-
         // Surpress link debug output
         PrintStream nullPrintStream = new PrintStream(OutputStream.nullOutputStream());
         System.setErr(nullPrintStream);
+        
+        p1 = new HDLProcess(0);
+        p2 = new HDLProcess(1);
+
+        InstanceManager.setSystemParameters(List.of(p1, p2));
+
+        al1 = new AuthenticatedPerfectLink(p1);
+        al2 = new AuthenticatedPerfectLink(p2);
     }
 
     @Test
     public void checkCreate() {
-        AuthenticatedPerfectLink pl1 = new AuthenticatedPerfectLink(p1);
-        AuthenticatedPerfectLink pl2 = new AuthenticatedPerfectLink(p2);
-
-        assertTrue(pl1.getChannelOwner() == p1);
-        assertTrue(pl2.getChannelOwner() == p2);
-
-        pl1.close();
-        pl2.close();
+        assertTrue("Incorrect channel owner", al1.getChannelOwner() == p1);
+        assertTrue("Incorrect channel owner", al2.getChannelOwner() == p2);
     }
 
     @Test
     public void checkComunication() throws InterruptedException {
-        AuthenticatedPerfectLink pl1 = new AuthenticatedPerfectLink(p1);
-        AuthenticatedPerfectLink pl2 = new AuthenticatedPerfectLink(p2);
-
         // p1 prepares request
         String value = "Hello p2!";
         ClientRequestMessage p1Message = new ClientRequestMessage(value);
         LinkMessage request = new LinkMessage(p1Message, p1, p2);
 
         // p2 waiting for a message
-        ChannelDeliverExecution p2Execution = new ChannelDeliverExecution(pl2);
+        ChannelDeliverExecution p2Execution = new ChannelDeliverExecution(al2);
         Thread p2Thread = new Thread(p2Execution);
         p2Thread.start();
 
         // p1 sends message to p2
-        pl1.send(request);
+        al1.send(request);
 
         // p1 waits for p2 delivers its message
         p2Thread.join();
@@ -81,14 +79,14 @@ public class AuthenticatedLinkTest  {
         ClientRequestMessage p2Message = (ClientRequestMessage) receivedMessage.getMessage();
 
         assertTrue("Received message differs from the one p1 sent", p2Message.getValue().equals(value));
-
-        pl1.close();
-        pl2.close();
     }
 
     @After
     public void cleanup() {
         // Reset link debug output
+        al1.close();
+        al2.close();
+        KeyHandler.cleanKeys();
         System.setErr(System.err);
     }
 }

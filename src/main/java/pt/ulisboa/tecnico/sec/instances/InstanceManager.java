@@ -5,6 +5,8 @@ import java.io.FileReader;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.io.PrintStream;
+
+import java.util.stream.Collectors;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -25,8 +27,8 @@ public class InstanceManager {
     public static void setSystemParameters(List<HDLProcess> processes) {
         KeyHandler.cleanKeys();
         for (HDLProcess p: processes) {
-            System.out.println("Process id -> " + p.getID() + ((getServerProcesses().contains(p))? " is a server": " is a client"));
-            KeyHandler.generateKey(p.getID());
+            System.err.println("Process id -> " + p.getID() + ((getServerProcesses().contains(p))? " is a server": " is a client"));
+            KeyHandler.generateKeys(p.getID());
         }
         _systemsProcesses = processes;
     }
@@ -57,7 +59,7 @@ public class InstanceManager {
     }
 
     public static List<HDLProcess> getServerProcesses() {
-        return _servers.stream().map(s -> (HDLProcess) s).toList();
+        return _servers.stream().map(s -> (HDLProcess) s).collect(Collectors.toList());
     }
 
     public static HDLProcess getLeader(int consensusInstance, int round) {
@@ -114,12 +116,7 @@ public class InstanceManager {
             }
         }
 
-        System.out.printf("Clients terminated%n");
-        //try {
-            //Thread.sleep(500);
-        //} catch (InterruptedException e) {
-            //e.printStackTrace();
-        //}
+        System.out.println("Clients terminated");
 
         // Signal servers to shutdown now
         System.out.printf("Shutting down the servers...%n");

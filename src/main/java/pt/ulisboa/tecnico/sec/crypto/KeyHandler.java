@@ -35,7 +35,7 @@ public class KeyHandler {
         return getPrefix(id) + PUBLIC_SUFFIX;
     }
 
-    public static void generateKey(int id) {
+    public static void generateKeys(int id) {
         generateKeyPair(getPrivateKeyFile(id), getPublicKeyFile(id));
     }
 
@@ -81,6 +81,7 @@ public class KeyHandler {
             key = KeyFactory.getInstance("RSA").generatePrivate(privateKeySpec);
         }
         catch (NoSuchAlgorithmException | InvalidKeySpecException | IOException e) {
+            e.printStackTrace();
             throw new IllegalStateException(String.format("[ERROR] Getting private key for process %d", id));
         }
 

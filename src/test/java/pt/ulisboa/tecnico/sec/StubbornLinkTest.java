@@ -11,6 +11,7 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
+import pt.ulisboa.tecnico.sec.crypto.KeyHandler;
 import pt.ulisboa.tecnico.sec.ibft.HDLProcess;
 import pt.ulisboa.tecnico.sec.instances.InstanceManager;
 import pt.ulisboa.tecnico.sec.links.StubbornLink;
@@ -22,37 +23,34 @@ import pt.ulisboa.tecnico.sec.messages.Message;
  * Unit test for stubborn point to point link.
  */
 public class StubbornLinkTest {
-    private static HDLProcess p1;
-    private static HDLProcess p2;
+    private HDLProcess p1;
+    private HDLProcess p2;
+    private StubbornLink sl1;
+    private StubbornLink sl2;
 
     @Before
     public void setup() throws UnknownHostException {
-        p1 = new HDLProcess(0);
-        p2 = new HDLProcess(1);
-        // InstanceManager.setSystemParameters(List.of(p1, p2));
-
         // Surpress link debug output
         PrintStream nullPrintStream = new PrintStream(OutputStream.nullOutputStream());
         System.setErr(nullPrintStream);
+        
+        p1 = new HDLProcess(0);
+        p2 = new HDLProcess(1);
+
+        InstanceManager.setSystemParameters(List.of(p1, p2));
+
+        sl1 = new StubbornLink(p1);
+        sl2 = new StubbornLink(p2);
     }
 
     @Test
     public void checkCreate() {
-        StubbornLink sl1 = new StubbornLink(p1);
-        StubbornLink sl2 = new StubbornLink(p2);
-
         assertTrue(sl1.getChannelOwner() == p1);
         assertTrue(sl2.getChannelOwner() == p2);
-
-        sl1.close();
-        sl2.close();
     }
 
     @Test
     public void checkComunication() throws InterruptedException {
-        StubbornLink sl1 = new StubbornLink(p1);
-        StubbornLink sl2 = new StubbornLink(p2);
-
         // p1 prepares request
         String value = "Hello p2!";
         ClientRequestMessage p1Message = new ClientRequestMessage(value);
@@ -81,14 +79,14 @@ public class StubbornLinkTest {
         ClientRequestMessage p2Message = (ClientRequestMessage) receivedMessage.getMessage();
 
         assertTrue("Received message differs from the one p1 sent", p2Message.getValue().equals(value));
-
-        sl1.close();
-        sl2.close();
     }
 
     @After
     public void cleanup() {
         // Reset link debug output
+        sl1.close();
+        sl2.close();
+        KeyHandler.cleanKeys();
         System.setErr(System.err);
     }
 }

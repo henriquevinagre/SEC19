@@ -52,6 +52,10 @@ public class Server extends HDLProcess {
 		return blockchainState.toString();
 	}
 
+    public String getBlockChainStringRaw() {
+        return blockchainState.getRaw();
+    }
+
 	public void execute() {
 		ibftBroadcast = new BestEffortBroadcast(channel, InstanceManager.getServerProcesses());
 
@@ -61,7 +65,7 @@ public class Server extends HDLProcess {
 
 		// Wait for client packets
 		while (running) {
-			System.out.printf("Server %s waiting for some request from a client...%n", this);
+			System.err.printf("Server %s waiting for some request from a client...%n", this);
 			try {
 				// Receives message
 				LinkMessage requestMessage = ibftBroadcast.deliver();
@@ -83,7 +87,7 @@ public class Server extends HDLProcess {
 					}
 				}).start();
 			} catch (SocketTimeoutException e) {
-				System.out.println("Socket waited for too long, maybe no more messages?");
+				System.err.println("Socket waited for too long, maybe no more messages?");
 				if (this.kys) {
 					this.running = false;
 				}
@@ -195,7 +199,7 @@ public class Server extends HDLProcess {
 		BFTMessage message = (BFTMessage) pre_prepare.getMessage();
 
 		if (pre_prepare.getSender().equals(InstanceManager.getLeader(message.getInstance(), message.getRound()))) {
-			System.out.printf("Server %d received valid pre-prepare from %d of consensus %d %n", this.getID(), pre_prepare.getSender().getID(), message.getInstance());
+			System.err.printf("Server %d received valid pre-prepare from %d of consensus %d %n", this.getID(), pre_prepare.getSender().getID(), message.getInstance());
 			BFTMessage toBroadcast = new BFTMessage(BFTMessage.Type.PREPARE, message.getInstance(), message.getRound(), message.getValue());
 			ibftBroadcast.broadcast(toBroadcast);
 		}
@@ -204,7 +208,7 @@ public class Server extends HDLProcess {
 	private void handlePrepare(LinkMessage prepare) throws InterruptedException {
 		BFTMessage message = (BFTMessage) prepare.getMessage();
 
-		System.out.printf("Server %d received valid prepare from %d of consensus %d %n", this.getID(), prepare.getSender().getID(), message.getInstance());
+		System.err.printf("Server %d received valid prepare from %d of consensus %d %n", this.getID(), prepare.getSender().getID(), message.getInstance());
 
 		int count = 0;
 		synchronized (prepareCount) {
@@ -265,14 +269,5 @@ public class Server extends HDLProcess {
 
 	public void kill() {
 		this.kys = true;
-		/*try {
-			ClientRequestMessage dummy = new ClientRequestMessage("KYS (in-game)");
-			LinkMessage killMessage = new LinkMessage(dummy, this, this, true);
-			System.out.printf("kilelele for %d%n", this.getID());
-			channel.send(killMessage);
-		}
-		catch (IllegalStateException | InterruptedException ile) {
-			System.err.printf("Tried to kill server %d but channel was already closed or receiver terminated%n", this.getID());
-		}*/
 	}
 }

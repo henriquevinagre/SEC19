@@ -38,9 +38,8 @@ public class FairLossLink extends Channel {
     }
 
     public void send(LinkMessage message) throws IllegalStateException, InterruptedException {
-
         // Check if receiver HDL process is active
-        if (message.getReceiver().getState().equals(HDLProcess.State.TERMINATE)) {
+        if (message.getReceiver() == null || message.getReceiver().getState().equals(HDLProcess.State.TERMINATE)) {
             throw new IllegalStateException(String.format("[ERROR] [%s] FLL: Could not send the %s because %s is not active!",
                 this.owner, message, message.getReceiver()));
         }
@@ -49,11 +48,11 @@ public class FairLossLink extends Channel {
         try {
             // Creates a UDP packet from message 
             DatagramPacket packet = message.toDatagramPacket();
-            
+
             // Sending message
-            _socket.send(packet);
-            System.err.printf("[%s] FLL: Sending packet to %s:%d with %d bytes\n", this.owner,
+            System.err.printf("[%s] FLL: Sending packet to %s:%d with %d bytes%n", this.owner,
                     packet.getAddress().getHostAddress(), packet.getPort(), packet.getLength());
+            _socket.send(packet);
         } catch (IOException ioe) {
             throw new IllegalStateException(String.format("[ERROR] [%s] FLL: Could not send on this socket", this.owner));
         }
@@ -70,7 +69,7 @@ public class FairLossLink extends Channel {
             // Wait for receiving some packet bytes
             _socket.receive(packet);
 
-            System.err.printf("[%s] FLL: Receiving packet from %s:%d with %d bytes\n", this.owner,
+            System.err.printf("[%s] FLL: Receiving packet from %s:%d with %d bytes%n", this.owner,
                     packet.getAddress().getHostAddress(), packet.getPort(), packet.getLength());
 
             // Serializes message

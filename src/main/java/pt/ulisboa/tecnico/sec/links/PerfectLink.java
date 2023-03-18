@@ -19,6 +19,9 @@ public class PerfectLink extends Channel {
         _delivered = new ArrayList<LinkMessage>();
     }
 
+    public List<LinkMessage> getDeliveredList() {
+        return _delivered;
+    }
 
     public void send(LinkMessage message) throws IllegalStateException, InterruptedException {
         System.err.printf("[%s] PL: Sending message %s\n", this.owner, message);

@@ -15,6 +15,16 @@ public class BlockchainState {
         _state.put(instance, newBlock);
     }
 
+    public String getRaw() {
+        String res = "";
+
+        for (int instance = 0; instance < _state.size(); instance++) {
+            res += _state.getOrDefault(instance, new BlockchainNode(-1, "")).getAppendString();
+        }
+
+        return res;
+    }
+
     @Override
     public boolean equals(Object obj) {
         if (!(obj instanceof BlockchainState)) return false;
