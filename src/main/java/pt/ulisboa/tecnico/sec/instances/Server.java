@@ -171,20 +171,25 @@ public class Server extends HDLProcess {
 			currentInstance = instance++;
 		}
 		if (this.equals(InstanceManager.getLeader(currentInstance, round))) {
-			System.out.printf("Server %d starting instance %d of consensus %n", this.getID(), this.instance);
+			System.out.printf("[L] Server %d starting instance %d of consensus %n", this.getID(), this.instance);
+			
+			// Creates PRE_PREPARE message
 			BFTMessage pre_prepare = new BFTMessage(BFTMessage.Type.PRE_PREPARE, currentInstance, 0, value);
-			System.out.printf("Leader -> Pre-Prepare instance %d%n", pre_prepare.getInstance());
+			pre_prepare.signMessage(this.getPrivateKey());
+			
+			// Broadcasts PRE_PREPARE
 			ibftBroadcast.broadcast(pre_prepare);
 		}
 	}
 
 	private void handleClientRequest(LinkMessage request) throws InterruptedException {
 		ClientRequestMessage requestMessage = (ClientRequestMessage) request.getMessage();
-
 		BlockchainNode value = new BlockchainNode(request.getSender().getID(), requestMessage.getValue());
 
+		// Keeps client request to eventually process it in case not being chosen in current instance
 		pendingRequests.add(new SimpleImmutableEntry<>(value, request.getSender()));
 
+		// Signals new proposed value for its 
 		startConsensus(value);
 	}
 
@@ -193,22 +198,30 @@ public class Server extends HDLProcess {
 		synchronized (instanceLock) {
 			currentInstance = instance;
 		}
-		if (!InstanceManager.getLeader(currentInstance, round).equals(pre_prepare.getSender()))
+
+		// Authenticates sender of the PRE_PREPARE message as the Leader (JUSTIFY_PRE_PREPARE)
+		if (!InstanceManager.getLeader(currentInstance, round).equals(pre_prepare.getSender()) ||
+			!pre_prepare.getMessage().hasValidSignature(pre_prepare.getSender().getPublicKey()))
 			return;
 
 		BFTMessage message = (BFTMessage) pre_prepare.getMessage();
 
-		if (pre_prepare.getSender().equals(InstanceManager.getLeader(message.getInstance(), message.getRound()))) {
-			System.err.printf("Server %d received valid pre-prepare from %d of consensus %d %n", this.getID(), pre_prepare.getSender().getID(), message.getInstance());
-			BFTMessage toBroadcast = new BFTMessage(BFTMessage.Type.PREPARE, message.getInstance(), message.getRound(), message.getValue());
-			ibftBroadcast.broadcast(toBroadcast);
-		}
+		System.err.printf("%sServer %d received valid PRE_PREPARE from %d of consensus %d %n", 
+			InstanceManager.getLeader(currentInstance, round).equals(this)? "[L] ": "", this.getID(), pre_prepare.getSender().getID(), message.getInstance());
+		
+		// Creates PREPARE message
+		BFTMessage prepare = new BFTMessage(BFTMessage.Type.PREPARE, message.getInstance(), message.getRound(), message.getValue());
+		
+		// Broadcasts PREPARE
+		ibftBroadcast.broadcast(prepare);
+
 	}
 
 	private void handlePrepare(LinkMessage prepare) throws InterruptedException {
 		BFTMessage message = (BFTMessage) prepare.getMessage();
 
-		System.err.printf("Server %d received valid prepare from %d of consensus %d %n", this.getID(), prepare.getSender().getID(), message.getInstance());
+		System.err.printf("%sServer %d received valid PREPARE from %d of consensus %d %n", 
+			InstanceManager.getLeader(message.getInstance(), round).equals(this)? "[L] ": "", this.getID(), prepare.getSender().getID(), message.getInstance());
 
 		int count = 0;
 		synchronized (prepareCount) {
@@ -217,17 +230,28 @@ public class Server extends HDLProcess {
 			count = prepareCount.get(message).size() + 1;
 		}
 
+		// Reaching a quorum of PREPARE messages (given by different servers) 
 		if (count == InstanceManager.getQuorum()) {
-			System.out.printf("Server %d received valid prepare quorum of consensus %d %n", this.getID(), message.getInstance());
+			System.out.printf("%sServer %d received valid PREPARE quorum of consensus %d with value %n", 
+				InstanceManager.getLeader(message.getInstance(), round).equals(this)? "[L] ": "", this.getID(), message.getInstance(), message.getValue());
+			
+			// Updates instance state
 			prepared_round = message.getRound();
 			prepared_value = message.getValue();
-			BFTMessage toBroadcast = new BFTMessage(BFTMessage.Type.COMMIT, message.getInstance(), message.getRound(), message.getValue());
-			ibftBroadcast.broadcast(toBroadcast);
+
+			// Creates COMMIT message
+			BFTMessage commit = new BFTMessage(BFTMessage.Type.COMMIT, message.getInstance(), message.getRound(), message.getValue());
+			
+			// Broadcasts COMMIT
+			ibftBroadcast.broadcast(commit);
 		}
 	}
 
 	private void handleCommit(LinkMessage commit) throws InterruptedException {
 		BFTMessage message = (BFTMessage) commit.getMessage();
+
+		System.err.printf("%sServer %d received valid COMMIT from %d of consensus %d %n", 
+			InstanceManager.getLeader(message.getInstance(), round).equals(this)? "[L] ": "", this.getID(), commit.getSender().getID(), message.getInstance());
 
 		int count = 0;
 		synchronized (commitCount) {
@@ -236,8 +260,12 @@ public class Server extends HDLProcess {
 			count = commitCount.get(message).size() + 1;
 		}
 
+		// Reaching a quorum of COMMIT messages (given by different servers) 
 		if (count == InstanceManager.getQuorum()) {
-			System.out.printf("Server %d received valid commit quorum of consensus %d with value %s %n", this.getID(), message.getInstance(), message.getValue());
+			System.out.printf("%sServer %d received valid COMMIT quorum of consensus %d with value %s %n", 
+				InstanceManager.getLeader(message.getInstance(), round).equals(this)? "[L] ": "", this.getID(), message.getInstance(), message.getValue());
+			
+			// Performs DECIDE
 			decide(message);
 		}
 	}
@@ -249,7 +277,10 @@ public class Server extends HDLProcess {
 	private void decide(BFTMessage message) throws InterruptedException {
 		// Maybe useful for 2nd stage?
 		// if (!this.equals(InstanceManager.getLeader(message.getInstance(), message.getRound()))) instance++;
+
 		blockchainState.append(message.getInstance(), message.getValue());
+		
+		// Lookup for the client request to give the response
 		int idx = -1;
 		for (int i = pendingRequests.size()-1; i >= 0; i--) {
 			if (pendingRequests.get(i).getKey().equals(message.getValue())) {
@@ -257,11 +288,20 @@ public class Server extends HDLProcess {
 				break;
 			}
 		}
-		if (idx == -1) return;
+		if (idx == -1) {
+			System.err.printf("%sServer %d request %s was lost %n", 
+				InstanceManager.getLeader(message.getInstance(), round).equals(this)? "[L] ": "", this.getID(), message.getValue());
+			return;
+		}
 		HDLProcess client = pendingRequests.remove(idx).getValue();
+		System.out.printf("%sServer %d deciding for client %s with proposed value %s at instance %d %n", 
+			InstanceManager.getLeader(message.getInstance(), round).equals(this)? "[L] ": "", this.getID(), client, message.getValue(), message.getInstance());
+
 		ClientResponseMessage response = new ClientResponseMessage(ClientResponseMessage.Status.OK, message.getInstance());
 		LinkMessage toSend = new LinkMessage(response, this, client);
 		channel.send(toSend);
+
+		// Start consensus of remain client requests
 		if (!pendingRequests.isEmpty()) {
 			startConsensus(pendingRequests.get(0).getKey());
 		}

@@ -12,10 +12,16 @@ import java.security.spec.*;
 import java.util.ArrayList;
 import java.util.List;
 
+import javax.crypto.KeyGenerator;
+import javax.crypto.SecretKey;
+import javax.crypto.spec.SecretKeySpec;
+
+
 public class KeyHandler {
     static final String KEYS_FOLDER = "keys";
-    static final String PRIVATE_SUFFIX = ".key";
+    static final String PRIVATE_SUFFIX = ".prv.key";
     static final String PUBLIC_SUFFIX = ".pub.key";
+    static final String SECRET_SUFFIX = ".key";
 
     static final List<File> keysFiles = new ArrayList<File>();
 
@@ -27,6 +33,10 @@ public class KeyHandler {
         return String.format("%s/instance-%d", KEYS_FOLDER, id);
     }
 
+    private static String getSecretPrefix(int id1, int id2) {
+        return String.format("%s/secret-%d-%d", KEYS_FOLDER, (id1 < id2)? id1: id2, (id1 < id2)? id2: id1);
+    }
+
     private static String getPrivateKeyFile(int id) {
         return getPrefix(id) + PRIVATE_SUFFIX;
     }
@@ -35,8 +45,16 @@ public class KeyHandler {
         return getPrefix(id) + PUBLIC_SUFFIX;
     }
 
-    public static void generateKeys(int id) {
+    private static String getSecretKeyFile(int id1, int id2) {
+        return getSecretPrefix(id1, id2) + SECRET_SUFFIX;
+    }
+
+    public static void generateKeyPair(int id) {
         generateKeyPair(getPrivateKeyFile(id), getPublicKeyFile(id));
+    }
+
+    public static void generateKeyFor(int id1, int id2) {
+        generateSecretKey(getSecretKeyFile(id1, id2));
     }
 
     private static void generateKeyPair(String privatePathName, String publicPathName) {
@@ -64,7 +82,29 @@ public class KeyHandler {
             keysFiles.add(new File(privatePathName));
         }
         catch (NoSuchAlgorithmException | IOException e) {
-            throw new IllegalStateException(String.format("[ERROR] Getting key pair"));
+            throw new IllegalStateException(String.format("[ERROR] Generating key pair"));
+        }
+    }
+
+    private static void generateSecretKey(String secretPathName) {
+        if (!Files.isDirectory(Path.of(".", KEYS_FOLDER), LinkOption.NOFOLLOW_LINKS)) {
+            throw new IllegalStateException("Directory '" + KEYS_FOLDER + "' does not exist!");
+        }
+        try {
+            SecureRandom random;
+            KeyGenerator keyGen = KeyGenerator.getInstance("AES");
+            random = SecureRandom.getInstance("SHA1PRNG");
+            keyGen.init(128, random);
+            SecretKey key = keyGen.generateKey();
+
+            FileOutputStream secretFos = new FileOutputStream(secretPathName);
+            secretFos.write(key.getEncoded());
+            secretFos.close();
+
+            keysFiles.add(new File(secretPathName));
+        }
+        catch (NoSuchAlgorithmException | IOException e) {
+            throw new IllegalStateException(String.format("[ERROR] Generating secret key"));
         }
     }
 
@@ -102,6 +142,24 @@ public class KeyHandler {
         }
         catch (NoSuchAlgorithmException | InvalidKeySpecException | IOException e) {
             throw new IllegalStateException(String.format("[ERROR] Getting public key for process %d", id));
+        }
+
+        return key;
+    }
+
+    public static SecretKey getSecretKey(int id1, int id2) {
+        SecretKey key = null;
+
+        try {
+            FileInputStream fis;
+            fis = new FileInputStream(getSecretKeyFile(id1, id2));
+            byte[] keyBytes = fis.readAllBytes();
+            fis.close();
+
+            key = new SecretKeySpec(keyBytes, 0, 16, "AES");
+        } catch (Exception e) {
+            throw new IllegalStateException(
+                String.format("[ERROR] Getting secret key for processes %d and %d", id1, id2));
         }
 
         return key;

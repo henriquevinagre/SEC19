@@ -3,15 +3,17 @@ package pt.ulisboa.tecnico.sec.messages;
 import java.io.ByteArrayInputStream;
 import java.io.DataInputStream;
 import java.io.IOException;
-import java.security.InvalidKeyException;
-import java.security.NoSuchAlgorithmException;
 import java.security.PrivateKey;
 import java.security.PublicKey;
-import java.security.Signature;
-import java.security.SignatureException;
+
+import javax.crypto.SecretKey;
+
+import pt.ulisboa.tecnico.sec.crypto.AuthenticationHandler;
 
 public abstract class Message {
     
+    public static final String HASH_NONE = "";
+
     public enum MessageType {
         BFT,
         CLIENT_REQUEST,
@@ -21,19 +23,32 @@ public abstract class Message {
 
     protected MessageType msgType;
     
-    protected byte[] signature;
+    // Authentication hashes of the message
+    protected String mac = HASH_NONE;
+    protected String signature = HASH_NONE;
 
     public MessageType getMessageType() {
         return msgType;
     }
 
-    protected Message setSignature(byte[] signature) {
-        this.signature = signature;
-        return this;
+    public String getMAC() {
+        return mac;
     }
 
-    // TODO: embed signature here
+    public String getSignature() {
+        return signature;
+    }
+
+    protected void setMAC(String mac) {
+        this.mac = mac;
+    }
+
+    protected void setSignature(String signature) {
+        this.signature = signature;
+    }
+
     public abstract byte[] toByteArray() throws IOException;
+
 
     public static Message fromByteArray(byte[] bytes) throws IOException {
         ByteArrayInputStream bais = new ByteArrayInputStream(bytes);
@@ -62,18 +77,40 @@ public abstract class Message {
             default:
                 throw new IllegalArgumentException("Unknown message type: " + messageType);
         }
+        
+        // Setting mac
+        message.mac = dis.readUTF();
+
+        // Setting signature
+        message.signature = dis.readUTF();
 
         return message;
     }
 
-    public void signMessage(PrivateKey key) throws IllegalStateException {
-        Signature newSignature;
+    public void setMessageMAC(SecretKey key) throws IllegalStateException {
+
         try {
-            newSignature = Signature.getInstance("SHA256withRSA");
-            newSignature.initSign(key);
-            newSignature.update(this.getDataBytes());
-            signature = newSignature.sign();
-        } catch (NoSuchAlgorithmException | SignatureException | InvalidKeyException | IOException e) {
+            mac = AuthenticationHandler.getMessageMAC(key, this);
+        } catch (IllegalStateException ise) {
+            throw new IllegalStateException(String.format("[ERROR] Setting MAC for message %s with %s", this, key));
+        }
+    }
+
+    public boolean hasValidMAC(SecretKey key) {
+        boolean valid = false;
+        try {
+            valid = AuthenticationHandler.checkMAC(key, this);
+        } catch (IllegalStateException ise) {
+            throw new IllegalStateException(String.format("[ERROR] Verifying MAC of message %s with %s", this, key));
+        }
+        return valid;
+    }
+
+    public void signMessage(PrivateKey key) throws IllegalStateException {
+
+        try {
+            signature = AuthenticationHandler.getMessageSignature(key, this);
+        } catch (IllegalStateException ise) {
             throw new IllegalStateException(String.format("[ERROR] Signing message %s with %s", this, key));
         }
     }
@@ -81,17 +118,14 @@ public abstract class Message {
     public boolean hasValidSignature(PublicKey key) throws IllegalStateException {
         boolean valid = false;
         try {
-            Signature verifier = Signature.getInstance("SHA256withRSA");
-            verifier.initVerify(key);
-            verifier.update(this.getDataBytes());
-            valid = verifier.verify(signature);
-        } catch (SignatureException | NoSuchAlgorithmException | InvalidKeyException | IOException e) {
-            throw new IllegalStateException(String.format("[ERROR] Verifying message %s with %s", this, key));
+            valid = AuthenticationHandler.checkSignature(key, this);
+        } catch (IllegalStateException ise) {
+            throw new IllegalStateException(String.format("[ERROR] Verifying signature of message %s with %s", this, key));
         }
         return valid;
     }
 
-    protected abstract byte[] getDataBytes() throws IOException;
+    public abstract byte[] getDataBytes() throws IOException;
 
     @Override
     public abstract String toString();

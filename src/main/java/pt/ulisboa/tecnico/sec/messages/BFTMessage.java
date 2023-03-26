@@ -44,6 +44,7 @@ public class BFTMessage extends Message {
         return this.value;
     }
 
+    @Override
     public byte[] toByteArray() throws IOException {
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         DataOutputStream dos = new DataOutputStream(baos);
@@ -56,8 +57,8 @@ public class BFTMessage extends Message {
         dos.writeInt(instance);
         dos.writeInt(round);
         dos.write(node);
-        dos.writeInt(super.signature.length);
-        dos.write(super.signature);
+        dos.writeUTF(super.mac);
+        dos.writeUTF(super.signature);
 
         return baos.toByteArray();
     }
@@ -66,18 +67,12 @@ public class BFTMessage extends Message {
         Type type = Type.values()[dis.readInt()];
         int instance = dis.readInt();
         int round = dis.readInt();
-
         BlockchainNode node = BlockchainNode.fromDataInputStream(dis);
 
-        int length = dis.readInt();
-        byte[] signature = new byte[length];
-        dis.readFully(signature);
-
-        return (BFTMessage) new BFTMessage(type, instance, round, node).setSignature(signature);
+        return new BFTMessage(type, instance, round, node);
     }
 
-    // TODO add something that makes any 2 messages always diferent
-    protected byte[] getDataBytes() throws IOException {
+    public byte[] getDataBytes() throws IOException {
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         DataOutputStream dos = new DataOutputStream(baos);
 

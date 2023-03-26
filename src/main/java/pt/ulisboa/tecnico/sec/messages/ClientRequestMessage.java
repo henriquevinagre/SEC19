@@ -22,27 +22,20 @@ public class ClientRequestMessage extends Message {
         DataOutputStream dos = new DataOutputStream(baos);
 
         dos.writeInt(Message.MessageType.CLIENT_REQUEST.ordinal());
-
         dos.writeUTF(value);
-        if (signature != null) {
-            dos.writeInt(super.signature.length);
-            dos.write(super.signature);
-        }
+        dos.writeUTF(super.mac);
+        dos.writeUTF(super.signature);
+
         return baos.toByteArray();
     }
 
     public static ClientRequestMessage fromDataInputStream(DataInputStream dis) throws IOException {
         String value = dis.readUTF();
 
-        int length = dis.readInt();
-        byte[] signature = new byte[length];
-        dis.readFully(signature);
-
-        return (ClientRequestMessage) new ClientRequestMessage(value).setSignature(signature);
+        return new ClientRequestMessage(value);
     }
 
-    // TODO add something that makes any 2 messages always diferent
-    protected byte[] getDataBytes() throws IOException {
+    public byte[] getDataBytes() throws IOException {
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         DataOutputStream dos = new DataOutputStream(baos);
 

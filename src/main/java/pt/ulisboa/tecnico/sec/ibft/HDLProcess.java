@@ -8,6 +8,8 @@ import java.security.PrivateKey;
 import java.security.PublicKey;
 import java.util.concurrent.ThreadLocalRandom;
 
+import javax.crypto.SecretKey;
+
 import pt.ulisboa.tecnico.sec.crypto.KeyHandler;
 
 public class HDLProcess {
@@ -91,4 +93,7 @@ public class HDLProcess {
         return KeyHandler.getPrivateKey(this._id);
     }
 
+    public SecretKey getSecretKeyFor(HDLProcess to) {
+        return KeyHandler.getSecretKey(this._id, to.getID());
+    }
 }

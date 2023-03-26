@@ -1,12 +1,13 @@
 package pt.ulisboa.tecnico.sec.links;
 
 import java.net.SocketTimeoutException;
-import java.security.PublicKey;
+
+import javax.crypto.SecretKey;
 
 import pt.ulisboa.tecnico.sec.ibft.HDLProcess;
 import pt.ulisboa.tecnico.sec.messages.LinkMessage;
 
-// Authenticated Perfect point to point link using Perfect links
+// Authenticated Perfect point to point link using Perfect links with MACs
 public class AuthenticatedPerfectLink extends Channel {
 
     private PerfectLink plInstance;
@@ -17,26 +18,25 @@ public class AuthenticatedPerfectLink extends Channel {
     }
 
     public void send(LinkMessage message) throws IllegalStateException, InterruptedException {
-        System.err.printf("[%s] APL: Signing message %s\n", this.owner, message);
-        message.getMessage().signMessage(this.owner.getPrivateKey());
-        // TODO: Fix any process can use: KeyHandler.getPrivateKey(otherID) to get other private key;
+        System.err.printf("[%s] APL: Setting MAC to message %s\n", this.owner, message);
+        message.getMessage().setMessageMAC(this.owner.getSecretKeyFor(message.getReceiver()));
         plInstance.send(message);
     }
 
     public LinkMessage deliver() throws IllegalStateException, InterruptedException, SocketTimeoutException {
         LinkMessage message = null;
-        PublicKey senderPubKey = null;
+        SecretKey secretKey = null;
 
-        // Wait for a message that was not delivered yet with valid signature
+        // Wait for a message that was not delivered yet with valid MAC
         do {
             message = plInstance.deliver();
-            senderPubKey = message.getSender().getPublicKey();
+            secretKey = this.owner.getSecretKeyFor(message.getSender());
             System.err.printf("[%s] APL: Received message %s\n", this.owner, message);
-        } while (!message.getTerminate() && !message.getMessage().hasValidSignature(senderPubKey));
+        } while (!message.getTerminate() && !message.getMessage().hasValidMAC(secretKey));
 
         assert(message != null);
 
-        System.err.printf("[%s] APL: Message signature verified! Delivering message %d ...\n", this.owner, message.getId());
+        System.err.printf("[%s] APL: Message MAC verified! Delivering message %d ...\n", this.owner, message.getId());
         return message;
     }
 

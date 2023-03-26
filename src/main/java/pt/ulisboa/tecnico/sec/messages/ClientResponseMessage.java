@@ -34,28 +34,22 @@ public class ClientResponseMessage extends Message {
         DataOutputStream dos = new DataOutputStream(baos);
 
         dos.writeInt(Message.MessageType.CLIENT_RESPONSE.ordinal());
-
         dos.writeInt(status.ordinal());
         dos.writeInt(timestamp);
-        if (signature != null) {
-            dos.writeInt(super.signature.length);
-            dos.write(super.signature);
-        }
+        dos.writeUTF(super.mac);
+        dos.writeUTF(super.signature);
+
         return baos.toByteArray();
     }
 
     public static ClientResponseMessage fromDataInputStream(DataInputStream dis) throws IOException {
         Status status = Status.values()[dis.readInt()];
         int timestamp = dis.readInt();
-        int length = dis.readInt();
-        byte[] signature = new byte[length];
-        dis.readFully(signature);
 
-        return (ClientResponseMessage) new ClientResponseMessage(status, timestamp).setSignature(signature);
+        return new ClientResponseMessage(status, timestamp);
     }
 
-    // TODO add something that makes any 2 messages always diferent
-    protected byte[] getDataBytes() throws IOException {
+    public byte[] getDataBytes() throws IOException {
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         DataOutputStream dos = new DataOutputStream(baos);
 

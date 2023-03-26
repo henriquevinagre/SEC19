@@ -27,7 +27,12 @@ public class InstanceManager {
     public static void setSystemParameters(List<HDLProcess> processes) {
         KeyHandler.cleanKeys();
         for (HDLProcess p: processes) {
-            KeyHandler.generateKeys(p.getID());
+            KeyHandler.generateKeyPair(p.getID());
+        }
+        for (int i = 0; i < processes.size(); i++) {
+            for (int j = i; j < processes.size(); j++) {
+                KeyHandler.generateKeyFor(processes.get(i).getID(), processes.get(j).getID());
+            }
         }
         _systemsProcesses = processes;
     }
