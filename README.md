@@ -18,11 +18,11 @@ mvn compile exec:java -Dexec.args="[your config file]"
 - All done! The status of the blockchain system should appear in the standard output! You can also check for some example configuration files in the folder `/configs`
 
 ## **How to test our system**
-- Test classes are present in the test directory `src/test` manipulated my maven. You can test all implemented test cases with:
+- Test classes are present in the test directory `src/test` manipulated by maven. You can test all implemented test cases with:
 ```bash
 mvn compile test
 ```
 - Or if you want a specific one run:
 ```bash
-mvn compile test -Dtest="[you classe of test cases]"
+mvn compile test -Dtest="[your classe of test cases]"
 ```

@@ -4,7 +4,9 @@ import java.net.SocketTimeoutException;
 import java.util.ArrayList;
 import java.util.List;
 
+import pt.ulisboa.tecnico.sec.ibft.ByzantineHandler;
 import pt.ulisboa.tecnico.sec.ibft.HDLProcess;
+import pt.ulisboa.tecnico.sec.ibft.ByzantineHandler.ByzantineBehaviour;
 import pt.ulisboa.tecnico.sec.messages.ACKMessage;
 import pt.ulisboa.tecnico.sec.messages.LinkMessage;
 import pt.ulisboa.tecnico.sec.messages.Message;
@@ -62,15 +64,21 @@ public class StubbornLink extends Channel {
         }
     }
 
-    private LinkMessage getAckMessage(int referId) throws InterruptedException {
+    private void waitAckMessage(int referId) throws InterruptedException {
         System.err.printf("[%s] SL: TRYING %d-ACK retrieved%n", this.owner, referId);
         while (true) {
+            // [B2] Skipping ACKs behaviour
+            if (ByzantineHandler.withBehaviourActive(this.owner, ByzantineBehaviour.SKIPPING_ACKS)) {
+                System.err.printf("[B2] Server %d skipped acks %n", this.owner.getID());
+                return;
+            }
             synchronized (acks) {
                 if (!acks.isEmpty()) {
                     for (int i = acks.size()-1; i >= 0; i--) {
                         if (((ACKMessage) acks.get(i).getMessage()).getReferId() == referId ) {
                             System.err.printf("[%s] SL: %d-ACK retrieved%n", this.owner, referId);
-                            return acks.remove(i);
+                            acks.remove(i);
+                            return;
                         }
                     }
                 } else {
@@ -112,7 +120,7 @@ public class StubbornLink extends Channel {
 
         Thread thread = new Thread (() -> {
             try {
-                this.getAckMessage(message.getId());
+                this.waitAckMessage(message.getId());
             } catch (InterruptedException e) {
                 // just stop the thread
             }

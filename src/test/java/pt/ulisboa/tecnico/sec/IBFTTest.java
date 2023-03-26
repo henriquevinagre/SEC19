@@ -7,14 +7,19 @@ import java.io.OutputStream;
 import java.io.PrintStream;
 import java.net.UnknownHostException;
 import java.util.List;
+import java.util.Map;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
 import pt.ulisboa.tecnico.sec.crypto.KeyHandler;
+import pt.ulisboa.tecnico.sec.ibft.ByzantineHandler;
+import pt.ulisboa.tecnico.sec.ibft.HDLProcess;
+import pt.ulisboa.tecnico.sec.ibft.ByzantineHandler.ByzantineBehaviour;
 import pt.ulisboa.tecnico.sec.instances.Client;
 import pt.ulisboa.tecnico.sec.instances.InstanceManager;
 import pt.ulisboa.tecnico.sec.instances.Server;
@@ -26,10 +31,9 @@ import pt.ulisboa.tecnico.sec.messages.ClientResponseMessage;
 public class IBFTTest  {
     private static final int NUM_SERVERS = 4;
     private static final int JOIN_TIMEOUT_MS = 5000;
-    private List<Server> servers;
-    private List<Client> clients;
-    private List<Thread> serverThreads;
-    private List<Thread> clientThreads;
+
+    private Map<Server, Thread> serverThreads;
+    private Map<Client, Thread> clientThreads;
     transient private static final List<String> messages = new ArrayList<String>(Arrays.asList(String.format("%s %s", "amogus", "red sus").split(" ")));
     
     // java modifiers be like *proceeds to read out entire dictionary*
@@ -57,8 +61,8 @@ public class IBFTTest  {
         System.setOut(nullPrintStream);
         System.setErr(nullPrintStream);
 
-        servers = new ArrayList<Server>(NUM_SERVERS);
-        clients = new ArrayList<Client>(messages.size());
+        List<Server> servers = new ArrayList<Server>(NUM_SERVERS);
+        List<Client> clients = new ArrayList<Client>(messages.size());
     
         for (int id = 0; id < NUM_SERVERS; id++) {
             servers.add(new Server(id, 8000 + id));
@@ -71,19 +75,19 @@ public class IBFTTest  {
 
         System.out.println("F= " + InstanceManager.getNumberOfByzantines() + ", Q= " + InstanceManager.getQuorum());
     
-        serverThreads = new ArrayList<Thread>(servers.size());
-        clientThreads = new ArrayList<Thread>(clients.size());
+        serverThreads = new HashMap<>(servers.size());
+        clientThreads = new HashMap<>(clients.size());
     
         for (Server server : servers) {
             Thread t = new Thread(() -> {
                 server.execute();
             });
-            serverThreads.add(t);
+            serverThreads.put(server, t);
             t.start();
         }
     
         for (Client client : clients) {
-            clientThreads.add(new Thread(() -> {
+            clientThreads.put(client, new Thread(() -> {
                 client.execute();
             }));
         }
@@ -91,18 +95,18 @@ public class IBFTTest  {
     
     @Test
     public void checkSingleClientAlgorithm() {
-        Client client = clients.get(0);
+        Client client = clientThreads.keySet().stream().findFirst().get();
         client.execute();
 
-        for (Server server : servers) {
+        for (Server server : serverThreads.keySet()) {
             server.kill();
         }
 
-        for (Thread serverThread : serverThreads) {
+        for (Thread serverThread : serverThreads.values()) {
             joinThread(serverThread);
         }
 
-        for (Server server : servers) {
+        for (Server server : serverThreads.keySet()) {
             assertTrue("The client message was not appended to blockchain", client.getMessage().equals(server.getBlockChainStringRaw()));
         }
 
@@ -114,36 +118,38 @@ public class IBFTTest  {
     @Test
     public void checkMultiClientAlgorithm() {
         // propagate client requests simultanly
-        for (Thread clientThread : clientThreads) {
+        for (Thread clientThread : clientThreads.values()) {
             clientThread.start();
         }
 
         // waits for clients to receive some response
-        for (Thread clientThread : clientThreads) {
+        for (Thread clientThread : clientThreads.values()) {
             joinThread(clientThread);
         }
 
         // signals servers to shutdow now
-        for (Server s : servers) {
-            s.kill();
+        for (Server server : serverThreads.keySet()) {
+            server.kill();
         }
 
         // waits for server to shutdown successfully
-        for (Thread serverThread : serverThreads) {
+        for (Thread serverThread : serverThreads.values()) {
             joinThread(serverThread);
         }
     
-        Server leader = servers.get(0);
+        Server leader = serverThreads.keySet().stream().findFirst().get();
         String leaderState = leader.getBlockChainStringRaw();
 
         for (String message : messages) {
             assertTrue("The blockchain state must have all client messages", leaderState.contains(message));
         }
 
-        for (Server s : servers) {
-            if (!s.equals(leader))
-                assertTrue("The blockchain state for server " + s.getID() + " differs from the leader", s.getBlockChainStringRaw().equals(leaderState));
+        for (Server server : serverThreads.keySet()) {
+            if (!server.equals(leader))
+                assertTrue("The blockchain state for server " + server.getID() + " differs from the leader", server.getBlockChainStringRaw().equals(leaderState));
         }
+
+        List<Client> clients = clientThreads.keySet().stream().toList();
 
         assertTrue("There is at least a client response that was in the same block", 
             clients.stream().map(c -> c.getResponse().getTimestamp()).distinct().count() == clients.size());
@@ -153,50 +159,52 @@ public class IBFTTest  {
     }
 
     @Test
-    public void checkByzantineParticipantAlgorithm() {
+    public void checkCrashByzantineParticipantAlgorithm() {
 
         // Tolerating a byzantine process with 4 servers (Q = 3)
 
         // propagate client requests simultanly
-        for (Thread clientThread : clientThreads) {
+        for (Thread clientThread : clientThreads.values()) {
             clientThread.start();
         }
 
-        Integer byzantineID = 1;  // not the leader
-        Server byzantineParticipant = servers.get(1);
-
-        Thread byzantineThread = serverThreads.get(byzantineID);
+        Server byzantineParticipant = (Server) ByzantineHandler.getByzantines().get(0);
         
-        // crash byzantine participant
+        // [B1] Crash byzantine participant behaviour
+        ByzantineHandler.activeOneWithBehaviour(byzantineParticipant, ByzantineBehaviour.CRASH); // Not need
+        Thread byzantineThread = serverThreads.get(byzantineParticipant);
+        byzantineParticipant.kill();
         byzantineThread.interrupt();
     
         // waits for clients to receive some response
-        for (Thread clientThread : clientThreads) {
+        for (Thread clientThread : clientThreads.values()) {
             joinThread(clientThread);
         }
 
         // signals servers to shutdow now
-        for (Server s : servers) {
-            s.kill();
+        for (Server server : serverThreads.keySet()) {
+            server.kill();
         }
 
         // waits for server to shutdown successfully
-        for (Thread serverThread : serverThreads) {
+        for (Thread serverThread : serverThreads.values()) {
             if (serverThread.getId() != byzantineThread.getId())
                 joinThread(serverThread);
         }
 
-        Server leader = servers.get(0);
+        Server leader = serverThreads.keySet().stream().findFirst().get();
         String leaderState = leader.getBlockChainStringRaw();
 
         for (String message : messages) {
             assertTrue("The blockchain state must have all client messages" + leaderState, leaderState.contains(message));
         }
 
-        for (Server s : servers) {
-            if (!List.of(leader, byzantineParticipant).contains(s))
-                assertTrue("The blockchain state for server " + s.getID() + " differs from the leader", s.getBlockChainStringRaw().equals(leaderState));
+        for (Server server : serverThreads.keySet()) {
+            if (!List.of(leader, byzantineParticipant).contains(server))
+                assertTrue("The blockchain state for server " + server.getID() + " differs from the leader", server.getBlockChainStringRaw().equals(leaderState));
         }
+
+        List<Client> clients = clientThreads.keySet().stream().toList();
 
         assertTrue("There is at least a client response that was in the same block", 
             clients.stream().map(c -> c.getResponse().getTimestamp()).distinct().count() == clients.size());
@@ -204,15 +212,68 @@ public class IBFTTest  {
         assertTrue("Wrong timestamps given for the clients", 
             clients.stream().map(c -> c.getResponse().getTimestamp()).allMatch(t -> t >= 0 && t < clients.size()));
     }
+
+    @Test
+    public void checkSkippingBehaviourByzantineParticipantAlgorithm() {
+
+        // Tolerating a byzantine process with 4 servers (Q = 3)
+
+        // propagate client requests simultanly
+        for (Thread clientThread : clientThreads.values()) {
+            clientThread.start();
+        }
+
+        Server byzantineParticipant = (Server) ByzantineHandler.getByzantines().get(0);
+        
+        // [B2] Skipping ACKs byzantine participant behaviour
+        ByzantineHandler.activeOneWithBehaviour(byzantineParticipant, ByzantineBehaviour.SKIPPING_ACKS);
+    
+        // waits for clients to receive some response
+        for (Thread clientThread : clientThreads.values()) {
+            joinThread(clientThread);
+        }
+
+        // signals servers to shutdow now
+        for (Server server : serverThreads.keySet()) {
+            server.kill();
+        }
+
+        // waits for server to shutdown successfully
+        for (Thread serverThread : serverThreads.values()) {
+            joinThread(serverThread);
+        }
+
+        Server leader = serverThreads.keySet().stream().findFirst().get();
+        String leaderState = leader.getBlockChainStringRaw();
+
+        for (String message : messages) {
+            assertTrue("The blockchain state must have all client messages" + leaderState, leaderState.contains(message));
+        }
+
+        for (Server server : serverThreads.keySet()) {
+            if (!List.of(leader, byzantineParticipant).contains(server))
+                assertTrue("The blockchain state for server " + server.getID() + " differs from the leader", server.getBlockChainStringRaw().equals(leaderState));
+        }
+
+        List<Client> clients = clientThreads.keySet().stream().toList();
+
+        assertTrue("There is at least a client response that was in the same block", 
+            clients.stream().map(c -> c.getResponse().getTimestamp()).distinct().count() == clients.size());
+
+        assertTrue("Wrong timestamps given for the clients", 
+            clients.stream().map(c -> c.getResponse().getTimestamp()).allMatch(t -> t >= 0 && t < clients.size()));
+    }
+
+    
     
     @After
     public void cleanup() {
         // Close program instance
         if (serverThreads != null) {
-            for (Server server : servers) {
+            for (Server server : serverThreads.keySet()) {
                 server.kill();
             }
-            for (Thread serverThread : serverThreads) {
+            for (Thread serverThread : serverThreads.values()) {
                 joinThread(serverThread);
             }
         }

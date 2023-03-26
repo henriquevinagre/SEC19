@@ -1,0 +1,19 @@
+1
+# ^ (F) byzantine servers to be supported
+
+# Clients
+C A B C
+C D E F
+C G H I
+C J K L
+C M N O
+C P Q R
+C S T U
+C V W X
+C Y Z :)
+
+# (N) Servers
+S 8000
+S 8001
+S 8002
+S 8003

@@ -1,10 +1,13 @@
 package pt.ulisboa.tecnico.sec.broadcasts;
 
 import java.net.SocketTimeoutException;
-
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Random;
 
+import pt.ulisboa.tecnico.sec.ibft.ByzantineHandler;
 import pt.ulisboa.tecnico.sec.ibft.HDLProcess;
+import pt.ulisboa.tecnico.sec.ibft.ByzantineHandler.ByzantineBehaviour;
 import pt.ulisboa.tecnico.sec.links.Channel;
 import pt.ulisboa.tecnico.sec.messages.LinkMessage;
 import pt.ulisboa.tecnico.sec.messages.Message;
@@ -30,7 +33,23 @@ public class BestEffortBroadcast {
 
     public void broadcast(Message message) throws IllegalStateException, InterruptedException {
         System.err.printf("[%s] BEB: Broadcasting message '%s'...%n", channel.getChannelOwner(), message);
-        for (HDLProcess pj: systemServers) {
+        
+        List<HDLProcess> broadcastTo = new ArrayList<>(systemServers);
+
+        // [B3] Incomplete broadcast behaviour
+        // if (ByzantineHandler.withBehaviourActive(this.channel.getChannelOwner(), ByzantineBehaviour.INCOMPLETE_BROADCAST)) {
+        //     System.err.printf("[B3] Server %d not completed broadcast %n", this.channel.getChannelOwner().getID());
+            
+        //     // Choose randomly the processes to broadcast
+        //     Random random = new Random();
+        //     int numBroadcasts = random.nextInt(0, systemServers.size() - 1);
+        //     while (broadcastTo.size() > numBroadcasts) {
+        //         int index = random.nextInt(0, broadcastTo.size());
+        //         broadcastTo.remove(index);
+        //     }
+        // }                    Not working 100%
+        
+        for (HDLProcess pj: broadcastTo) {
             LinkMessage linkMessage = new LinkMessage(message, channel.getChannelOwner(), pj);
             channel.send(linkMessage);
         }

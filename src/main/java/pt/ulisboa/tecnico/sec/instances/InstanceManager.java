@@ -11,9 +11,12 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Random;
 
 import pt.ulisboa.tecnico.sec.crypto.KeyHandler;
+import pt.ulisboa.tecnico.sec.ibft.ByzantineHandler;
 import pt.ulisboa.tecnico.sec.ibft.HDLProcess;
+import pt.ulisboa.tecnico.sec.ibft.ByzantineHandler.ByzantineBehaviour;
 
 public class InstanceManager {
 
@@ -50,6 +53,34 @@ public class InstanceManager {
                                                 "The maximum that this configuration can support is " + (_servers.size() - 1) / 3 + " byzantine processes.");
         _quorum = ((_servers.size() + _numByzantineProcesses) / 2) + 1;
         
+        // Choose randomly the byzantines servers
+        Random random = new Random();
+        List<HDLProcess> byzantines = new ArrayList<>(servers);
+        byzantines.remove(0); // leader is always a correct process 
+        while (byzantines.size() > f) {
+            int index = random.nextInt(byzantines.size());
+            byzantines.remove(index);
+        }
+            
+        System.out.printf("Number of byzantines %d %n", byzantines.size());
+
+        List<ByzantineHandler.ByzantineBehaviour> behaviours = new ArrayList<>();
+        ByzantineHandler.ByzantineBehaviour[] possibilities = ByzantineHandler.ByzantineBehaviour.values();
+        while (behaviours.size() < f) {
+            int index = random.nextInt(possibilities.length - 1); // excluding NONE possibility
+            behaviours.add(possibilities[1 + index]);
+        }
+
+        for (HDLProcess b: byzantines)
+            System.out.printf("| %s |", b);
+            System.out.printf("%nNumber of byzantines %d %n", behaviours.size());
+
+        for (ByzantineHandler.ByzantineBehaviour b: behaviours)
+            System.out.printf("| %s |", b);
+            System.out.printf("%nNumber of behaviours %d %n", behaviours.size());
+        
+        ByzantineHandler.setParameters(byzantines, behaviours);
+
         List<HDLProcess> newProcesses = new ArrayList<>();
         for (Client c: clients)
             newProcesses.add(c.getHDLInstance());
@@ -110,6 +141,18 @@ public class InstanceManager {
             });
             t.start();
             clientThreads.put(client, t);
+        }
+
+        // Signals byzantine behaviour
+        ByzantineHandler.activeAll();
+
+        // [B1] Crash behaviour
+        for (Server server: serverThreads.keySet()) {
+            if (ByzantineHandler.withBehaviourActive(server, ByzantineBehaviour.CRASH)) {
+                server.kill();
+                serverThreads.get(server).interrupt();
+                System.err.printf("[B1] Server %d crashed %n", server.getID());
+            }
         }
 
         // Wait for all clients to finish first
