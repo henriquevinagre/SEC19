@@ -5,24 +5,29 @@ import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
 
+import pt.ulisboa.tecnico.sec.tes.Transaction;
+
 public class ClientRequestMessage extends Message {
 
-    private String value;
+    private Transaction transaction;
 
-    public String getValue() {
-        return value;
+    public Transaction getTransaction() {
+        return transaction;
     }
 
-    public ClientRequestMessage(String value) {
-        this.value = value;
+    public ClientRequestMessage(Transaction transaction) {
+        this.transaction = transaction;
     }
 
     public byte[] toByteArray() throws IOException {
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         DataOutputStream dos = new DataOutputStream(baos);
 
+        byte[] transactionBytes = transaction.toByteArray();
+
         dos.writeInt(Message.MessageType.CLIENT_REQUEST.ordinal());
-        dos.writeUTF(value);
+        dos.writeInt(transactionBytes.length);
+        dos.write(transactionBytes);
         dos.writeUTF(super.mac);
         dos.writeUTF(super.signature);
 
@@ -30,23 +35,27 @@ public class ClientRequestMessage extends Message {
     }
 
     public static ClientRequestMessage fromDataInputStream(DataInputStream dis) throws IOException {
-        String value = dis.readUTF();
+        byte[] transactionBytes = new byte[dis.readInt()];
+        dis.readFully(transactionBytes);
 
-        return new ClientRequestMessage(value);
+        return new ClientRequestMessage(Transaction.fromByteArray(transactionBytes));
     }
 
     public byte[] getDataBytes() throws IOException {
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         DataOutputStream dos = new DataOutputStream(baos);
 
+        byte[] transactionBytes = transaction.toByteArray();
+
         dos.writeInt(Message.MessageType.CLIENT_REQUEST.ordinal());
-        dos.writeUTF(value);
+        dos.writeInt(transactionBytes.length);
+        dos.write(transactionBytes);
 
         return baos.toByteArray();
     }
 
     @Override
     public String toString() {
-        return String.format("%s/%s", Message.MessageType.CLIENT_REQUEST.toString(), value);
+        return String.format("%s/%s", Message.MessageType.CLIENT_REQUEST.toString(), transaction.toString());
     }
 }

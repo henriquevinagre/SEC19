@@ -1,4 +1,4 @@
-package pt.ulisboa.tecnico.sec.ibft;
+package pt.ulisboa.tecnico.sec.tes;
 
 import java.net.SocketTimeoutException;
 import java.net.UnknownHostException;
@@ -9,6 +9,7 @@ import java.util.AbstractMap.SimpleImmutableEntry;
 import java.util.HashMap;
 
 import pt.ulisboa.tecnico.sec.broadcasts.BestEffortBroadcast;
+import pt.ulisboa.tecnico.sec.ibft.HDLProcess;
 import pt.ulisboa.tecnico.sec.instances.InstanceManager;
 import pt.ulisboa.tecnico.sec.links.AuthenticatedPerfectLink;
 import pt.ulisboa.tecnico.sec.messages.ClientRequestMessage;
@@ -16,11 +17,11 @@ import pt.ulisboa.tecnico.sec.messages.ClientResponseMessage;
 import pt.ulisboa.tecnico.sec.messages.LinkMessage;
 import pt.ulisboa.tecnico.sec.messages.Message;
 
-public class IBFTClientAPI extends HDLProcess {
+public class TESClientAPI extends HDLProcess {
 
     private AuthenticatedPerfectLink channel;
 
-    public IBFTClientAPI(int id) throws UnknownHostException {
+    public TESClientAPI(int id) throws UnknownHostException {
         super(id);
         this.channel = new AuthenticatedPerfectLink(this);
     }
@@ -29,7 +30,6 @@ public class IBFTClientAPI extends HDLProcess {
         // protecting against client multithread
         synchronized(this) {
 
-            List<LinkMessage> responses = new ArrayList<>();
             List<Integer> sendersId = new ArrayList<>();
             Map<SimpleImmutableEntry<ClientResponseMessage.Status, Integer>, Integer> responsesCount = new HashMap<>();
 
@@ -38,7 +38,7 @@ public class IBFTClientAPI extends HDLProcess {
             broadcastChannel.broadcast(request);
 
             // Waiting until we get MAX responses allowed
-            while (responses.size() < InstanceManager.getTotalNumberServers()) {
+            while (true) {
                 LinkMessage response = null;
                 try {
                     response = broadcastChannel.deliver();
@@ -56,18 +56,16 @@ public class IBFTClientAPI extends HDLProcess {
 
                 SimpleImmutableEntry<ClientResponseMessage.Status, Integer> entry = new SimpleImmutableEntry<>(message.getStatus(), message.getTimestamp());
                 responsesCount.putIfAbsent(entry, 0);
-                
+
                 int count = responsesCount.get(entry) + 1;
 
                 responsesCount.put(entry, count);
-                
+
                 System.out.printf("API CLIENT %d received %s (responses number %d)%n", this._id, response, count);
 
                 if (count == InstanceManager.getNumberOfByzantines() + 1)
                     return message;
             }
-
-            return new ClientResponseMessage(ClientResponseMessage.Status.REJECTED, null);
         }
     }
 

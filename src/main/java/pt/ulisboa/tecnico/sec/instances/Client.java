@@ -3,20 +3,20 @@ package pt.ulisboa.tecnico.sec.instances;
 import java.net.UnknownHostException;
 
 import pt.ulisboa.tecnico.sec.ibft.HDLProcess;
-import pt.ulisboa.tecnico.sec.ibft.IBFTClientAPI;
 import pt.ulisboa.tecnico.sec.messages.ClientResponseMessage;
+import pt.ulisboa.tecnico.sec.tes.TESClientAPI;
 
 public class Client {
 	private String message;
 	private int id;
-	private IBFTClientAPI api;
+	private TESClientAPI api;
 
 	private ClientResponseMessage response;
 
 	public Client(int id, String message) throws UnknownHostException {
 		this.message = message;
 		this.id = id;
-		api = new IBFTClientAPI(id);
+		api = new TESClientAPI(id);
 	}
 
     public String getMessage() {

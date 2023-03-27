@@ -19,7 +19,7 @@ public class BlockchainState {
         String res = "";
 
         for (int instance = 0; instance < _state.size(); instance++) {
-            res += _state.getOrDefault(instance, new BlockchainNode(-1, "")).getAppendString();
+            res += _state.getOrDefault(instance, new BlockchainNode()).toString();
         }
 
         return res;
@@ -37,7 +37,7 @@ public class BlockchainState {
         String res = "";
 
         for (int instance = 0; instance < _state.size(); instance++) {
-            res += String.format("| %s |", _state.getOrDefault(instance, new BlockchainNode(-1, "!!!NO MESSAGE!!!")).getAppendString());
+            res += String.format("| %s |", _state.getOrDefault(instance, new BlockchainNode()).toString());
         }
 
         return res;

@@ -57,6 +57,20 @@ public class KeyHandler {
         generateSecretKey(getSecretKeyFile(id1, id2));
     }
 
+    public static KeyPair generateAccountKeyPair() {
+        KeyPair res = null;
+        try {
+            SecureRandom random;
+            KeyPairGenerator keyGen = KeyPairGenerator.getInstance("RSA");
+            random = SecureRandom.getInstance("SHA1PRNG");
+            keyGen.initialize(2048, random);
+            res = keyGen.generateKeyPair();
+        } catch (NoSuchAlgorithmException e) {
+            e.printStackTrace();
+        }
+        return res;
+    }
+
     private static void generateKeyPair(String privatePathName, String publicPathName) {
         if (!Files.isDirectory(Path.of(".", KEYS_FOLDER), LinkOption.NOFOLLOW_LINKS)) {
             throw new IllegalStateException("Directory '" + KEYS_FOLDER + "' does not exist!");
