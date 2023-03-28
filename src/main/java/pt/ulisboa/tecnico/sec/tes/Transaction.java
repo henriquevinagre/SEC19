@@ -14,8 +14,7 @@ import java.security.Signature;
 import java.security.SignatureException;
 import java.security.spec.InvalidKeySpecException;
 import java.security.spec.X509EncodedKeySpec;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.Arrays;
 
 public class Transaction {
     public enum Operation {
@@ -24,44 +23,47 @@ public class Transaction {
     }
 
     private PublicKey _clientKey;
+    private PublicKey _destination;
+    private double _amount = 0;
     private Operation _operation;
     private int _nonce;
     private byte[] _challenge;
-    private List<byte[]>  _args;
 
     private void setPublicKey(PublicKey key) { _clientKey = key; }
+    private void setDestination(PublicKey key) { _destination = key; }
     private void setOperation(Operation op) { _operation = op; }
     private void setNonce(int nonce) { _nonce = nonce; }
     private void setChallenge(byte[] challenge) { _challenge = challenge; }
-    private void setArgs(List<byte[]> args) { _args = args; }
+    private void setAmount(double amount) { _amount = amount; }
 
-    public PublicKey getPublicKey() { return _clientKey; }
+    public PublicKey getClientKey() { return _clientKey; }
+    public PublicKey getDestination() { return _destination; }
     public Operation getOperation() { return _operation; }
     private int getNonce() { return _nonce; }
     private byte[] getChallenge() { return _challenge; }
-    public List<byte[]> getArgs() { return _args; }
+    public double getAmount() { return _amount; }
+
+    Transaction() {
+        _amount = 0;
+        _challenge = new byte[0];
+    }
 
     public static Transaction createAccountTransaction(PublicKey key) {
         Transaction res = new Transaction();
 
         res.setOperation(Operation.CREATE_ACCOUNT);
         res.setPublicKey(key);
-        res.setArgs(List.of());
 
         return res;
     }
 
-    public static Transaction transferTransaction(PublicKey sender, PublicKey receiver, Integer amount) {
+    public static Transaction transferTransaction(PublicKey sender, PublicKey receiver, double amount) {
         Transaction res = new Transaction();
 
         res.setOperation(Operation.TRANSFER);
         res.setPublicKey(sender);
-
-        ArrayList<byte[]> list = new ArrayList<>();
-        list.add(receiver.getEncoded());
-        list.add(new byte[] { amount.byteValue() });
-
-        res.setArgs(list);
+        res.setDestination(receiver);
+        res.setAmount(amount);
 
         return res;
     }
@@ -106,12 +108,13 @@ public class Transaction {
         dos.writeInt(keyBytes.length);
         dos.write(keyBytes);
 
-        for (byte[] bytes : _args) {
-            dos.writeInt(bytes.length);
-            dos.write(bytes);
+        if (this.getOperation().equals(Operation.TRANSFER)) {
+            dos.writeDouble(_amount);
+    
+            keyBytes = _destination.getEncoded();
+            dos.writeInt(keyBytes.length);
+            dos.write(keyBytes);
         }
-
-        dos.writeInt(0);
 
         return baos.toByteArray();
     }
@@ -132,23 +135,30 @@ public class Transaction {
         byte[] keyBytes = new byte[dis.readInt()];
         dis.readFully(keyBytes);
 
-        PublicKey key = null;
+        byte[] destBytes = null;
+
+        if (res.getOperation().equals(Operation.TRANSFER)) {
+            res.setAmount(dis.readDouble());
+
+            destBytes = new byte[dis.readInt()];
+            dis.readFully(destBytes);
+        }
+
+        PublicKey clientKey = null;
+        PublicKey destination = null;
 
         try {
-            key = KeyFactory.getInstance("RSA").generatePublic(new X509EncodedKeySpec(keyBytes));
+            clientKey = KeyFactory.getInstance("RSA").generatePublic(new X509EncodedKeySpec(keyBytes));
+
+            if (res.getOperation().equals(Operation.TRANSFER))
+                destination = KeyFactory.getInstance("RSA").generatePublic(new X509EncodedKeySpec(destBytes));
         } catch (InvalidKeySpecException | NoSuchAlgorithmException e) {
             e.printStackTrace();
+            // throw new IllegalStateException();
         }
 
-        res.setPublicKey(key);
-
-        int length = dis.readInt();
-        ArrayList<byte[]> args = new ArrayList<>();
-
-        while (length != 0) {
-            args.add(dis.readNBytes(length));
-            length = dis.readInt();
-        }
+        res.setPublicKey(clientKey);
+        res.setDestination(destination);
 
         return res;
     }
@@ -157,19 +167,20 @@ public class Transaction {
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         DataOutputStream dos = new DataOutputStream(baos);
 
-        byte[] keyBytes = _clientKey.getEncoded();
-
-        dos.writeInt(_operation.ordinal());
-        dos.writeInt(keyBytes.length);
         dos.writeInt(_nonce);
-        dos.write(keyBytes);
+        dos.writeInt(_operation.ordinal());
 
-        for (byte[] bytes : _args) {
-            dos.writeInt(bytes.length);
-            dos.write(bytes);
+        byte[] clientKeyBytes = _clientKey.getEncoded();
+        dos.writeInt(clientKeyBytes.length);
+        dos.write(clientKeyBytes);
+        if (_operation.equals(Operation.TRANSFER)) {
+            byte[] destinationKeyBytes = _destination.getEncoded();
+            dos.writeInt(destinationKeyBytes.length);
+            dos.write(destinationKeyBytes);
+            dos.writeDouble(_amount);
         }
 
-        dos.writeInt(0);
+        // FIXME: REMOVE THIS Scheiße :O dos.writeInt(0);
 
         return baos.toByteArray();
     }
@@ -178,24 +189,32 @@ public class Transaction {
     public boolean equals(Object obj) {
         if (!(obj instanceof Transaction)) return false;
         Transaction t = (Transaction) obj;
-        return t.getArgs().equals(this.getArgs())
+        return t.getAmount() == this.getAmount()
+            && t.getNonce() == this.getNonce()
             && t.getOperation().equals(this.getOperation())
-            && t.getPublicKey().equals(this.getPublicKey());
+            && t.getClientKey().equals(this.getClientKey())
+            && Arrays.equals(t.getChallenge(), this.getChallenge())
+            && t.getOperation().equals(this.getOperation());
+            // && t.getDestination().equals(this.getDestination());
     }
 
     @Override
     public int hashCode() {
         int result = 17;
 
+        result = 31 * result + _nonce;
         result = 31 * result + _operation.hashCode();
-        result = 31 * result + _args.hashCode();
+        // result = 31 * result + (int) _amount;
         result = 31 * result + _clientKey.hashCode();
+        // result = 31 * result + _destination.hashCode();
+        result = 31 * result + Arrays.hashCode(_challenge);
 
         return result;
     }
 
     @Override
     public String toString() {
-        return String.format("[transaction:%s; args:'%s']", _operation.toString(), _args);
+        return String.format("[transaction:%s; %s]", _operation.toString(), 
+            (_operation.equals(Operation.TRANSFER)? "amount=" + _amount: ""));
     }
 }

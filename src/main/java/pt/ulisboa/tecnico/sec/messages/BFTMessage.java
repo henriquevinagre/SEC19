@@ -11,8 +11,7 @@ public class BFTMessage extends Message {
     public enum Type {
         PRE_PREPARE,
         PREPARE,
-        COMMIT,
-        ROUND_CHANGE
+        COMMIT
     }
 
     private Type type;
@@ -20,7 +19,6 @@ public class BFTMessage extends Message {
     private int round;
     private BlockchainNode value;
 
-    // TODO another constructor is needed for ROUND_CHANGE messages (second stage of the project)
     public BFTMessage(Type type, int instance, int round, BlockchainNode value) {
         this.type = type;
         this.instance = instance;

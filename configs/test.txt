@@ -1,26 +1,9 @@
-2
+0
 # ^ (F) byzantine servers to be supported
 
 # Clients
 C Never Gonna
-C Give You Up
-C Never Gonna
-C Let You Down
-C Never Gonna
-C Run around and desert you
-C Never Gonna
-C Make you cry
-C Never Gonna
-C Say goodbye
-C Never Gonna
-C Tell a lie and hurt you
 
 # (N) Servers
 S 8000
-S 8001
-S 8002
-S 8003
-S 8004
-S 8005
-S 8006
-S 8007
+

@@ -1,5 +1,6 @@
 package pt.ulisboa.tecnico.sec.ibft;
 
+import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
@@ -11,13 +12,14 @@ import java.util.List;
 import pt.ulisboa.tecnico.sec.tes.Transaction;
 
 public class BlockchainNode {
-    public static final int NODE_SIZE = 10;
+    public static final int NODE_SIZE = 1;
     public static final int TRANSACTION_FEE = 1; // every transaction must pay 1 coin to the block producer
     private List<Transaction> transactions;
     private List<Transaction> rewards;
 
     public BlockchainNode() {
         transactions = new ArrayList<>();
+        rewards = new ArrayList<>();
     }
 
     public BlockchainNode(List<Transaction> transactions, List<Transaction> rewards) {
@@ -29,16 +31,24 @@ public class BlockchainNode {
         return transactions;
     }
 
+    public List<Transaction> getRewards() {
+        return rewards;
+    }
+
     public void addTransaction(Transaction t, PublicKey producerKey) {
         if (transactions.size() == NODE_SIZE) throw new IllegalStateException("Node is full, cannot add more transactions!");
         transactions.add(t);
 
         // no need to sign these transactions, get scammed lmao
-        rewards.add(Transaction.transferTransaction(t.getPublicKey(), producerKey, TRANSACTION_FEE));
+        rewards.add(Transaction.transferTransaction(t.getClientKey(), producerKey, TRANSACTION_FEE));
     }
 
     public boolean isFull() {
         return transactions.size() == NODE_SIZE;
+    }
+
+    public boolean isEmpty() {
+        return transactions.isEmpty();
     }
 
     public byte[] toByteArray() throws IOException {
@@ -88,6 +98,13 @@ public class BlockchainNode {
         }
 
         return new BlockchainNode(transactions, rewards);
+    }
+
+    public static BlockchainNode fromByteArray(byte[] bytes) throws IOException {
+        ByteArrayInputStream bais = new ByteArrayInputStream(bytes);
+        DataInputStream dis = new DataInputStream(bais);
+
+        return BlockchainNode.fromDataInputStream(dis);
     }
 
     @Override

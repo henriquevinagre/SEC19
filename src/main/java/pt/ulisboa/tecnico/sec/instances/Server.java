@@ -19,6 +19,8 @@ import pt.ulisboa.tecnico.sec.messages.BFTMessage;
 import pt.ulisboa.tecnico.sec.messages.ClientRequestMessage;
 import pt.ulisboa.tecnico.sec.messages.ClientResponseMessage;
 import pt.ulisboa.tecnico.sec.messages.LinkMessage;
+import pt.ulisboa.tecnico.sec.tes.TESAccount;
+import pt.ulisboa.tecnico.sec.tes.TESState;
 import pt.ulisboa.tecnico.sec.tes.Transaction;
 
 
@@ -30,10 +32,12 @@ public class Server extends HDLProcess {
 	private List<SimpleImmutableEntry<Transaction, HDLProcess>> pendingRequests;
 	private BlockchainState blockchainState;
 	private BlockchainNode toPropose;
+	private TESState tesState;
 
 	// IBFT related variables
 	private int instance = 0;
 	private Object instanceLock = new Object();
+	private Object toProposeLock = new Object();
 	private int round = 0;
 	private Map<BFTMessage, Set<Integer>> prepareCount;
 	private Map<BFTMessage, Set<Integer>> commitCount;
@@ -47,6 +51,7 @@ public class Server extends HDLProcess {
 		commitCount = new HashMap<>();
 		blockchainState = new BlockchainState();
 		toPropose = new BlockchainNode();
+		tesState = new TESState();
 	}
 
 	public String getBlockChainState() {
@@ -78,6 +83,7 @@ public class Server extends HDLProcess {
 					try {
 						handleIncomingMessage(requestMessage);
 					} catch (IllegalStateException | NullPointerException e) {
+						e.printStackTrace();
 						System.err.printf("Server %d %s catch %s%n", this.getID(), Thread.currentThread().getName(), e.toString());
 					} catch (InterruptedException e) {
 						e.printStackTrace(System.out);
@@ -99,7 +105,7 @@ public class Server extends HDLProcess {
 			}
 		}
 
-		System.err.printf("Server %d is closing...\n", this.getID());
+		System.err.printf("Server %d is closing...%n", this.getID());
 
 		for (int i = 0; i < activeHandlerThreads.size(); i++) {
 			Thread t = null;
@@ -135,7 +141,7 @@ public class Server extends HDLProcess {
 		this.selfTerminate();
 		channel.close();
 
-		System.out.printf("Server %d closed\n", this.getID());
+		System.out.printf("Server %d closed%n", this.getID());
 	}
 
 
@@ -154,9 +160,6 @@ public class Server extends HDLProcess {
 						break;
 					case COMMIT:
 						handleCommit(incomingMessage);
-						break;
-					case ROUND_CHANGE:
-						handleRoundChange(incomingMessage);
 						break;
 				}
 				break;
@@ -181,24 +184,48 @@ public class Server extends HDLProcess {
 		}
 	}
 
+	private boolean checkTransaction(Transaction transaction) {
+		TESAccount srcAccount = tesState.getAccount(transaction.getClientKey());
+		TESAccount dstAccount = tesState.getAccount(transaction.getDestination());
+		double amount = transaction.getAmount();
+
+		//System.out.printf("Transaction with empty set? " + tesState.isEmpty() + ", operation=%d, src=" + srcAccount + ", dst=" + dstAccount + ", amount=%f%n", transaction.getOperation().ordinal(), amount);
+
+		switch (transaction.getOperation()) {
+			case CREATE_ACCOUNT:
+				return transaction.getClientKey() != null && dstAccount == null && amount == 0;
+			case TRANSFER:
+				return srcAccount != null && dstAccount != null &&
+					amount > 0 && amount <= srcAccount.getTucs() && amount < Double.MAX_VALUE - dstAccount.getTucs(); // NO OVERFLOW ALLOWED!!!
+			default:
+				return false;
+		}
+	}
+
 	private void handleClientRequest(LinkMessage request) throws InterruptedException {
 		ClientRequestMessage requestMessage = (ClientRequestMessage) request.getMessage();
 		Transaction transaction = requestMessage.getTransaction();
 
-		// check if balance is positive, account exists, etc
-		if (blockchainState.checkTransaction(toPropose, transaction)) {
+		// System.out.println("Checking Transaction, correctly signed: " + transaction.validateTransaction());
 
+		if (!checkTransaction(transaction) || !transaction.validateTransaction()) return; // TODO: Send rejection message to client :(
+
+		// System.out.println("Transaction is valid");
+
+		BlockchainNode toProposeCopy = null;
+
+		synchronized (toProposeLock) {
 			toPropose.addTransaction(transaction, this.getPublicKey());
-			pendingRequests.add(new SimpleImmutableEntry<>(transaction, request.getSender()));
-
 			if (toPropose.isFull()) {
-				startConsensus(toPropose);
+				toProposeCopy = new BlockchainNode(toPropose.getTransactions(), toPropose.getRewards());
 				toPropose = new BlockchainNode();
 			}
-		} else {
-			ClientResponseMessage responseMessage = new ClientResponseMessage(ClientResponseMessage.Status.REJECTED, -1);
-			LinkMessage toSend = new LinkMessage(responseMessage, this, request.getSender());
-			channel.send(toSend);
+		}
+
+		pendingRequests.add(new SimpleImmutableEntry<>(transaction, request.getSender()));
+
+		if (toProposeCopy != null) {
+			startConsensus(toProposeCopy);
 		}
 	}
 
@@ -241,7 +268,7 @@ public class Server extends HDLProcess {
 
 		// Reaching a quorum of PREPARE messages (given by different servers)
 		if (count == InstanceManager.getQuorum()) {
-			System.out.printf("%sServer %d received valid PREPARE quorum of consensus %d with value %n",
+			System.out.printf("%sServer %d received valid PREPARE quorum of consensus %d with value %s %n",
 				InstanceManager.getLeader(message.getInstance(), round).equals(this)? "[L] ": "", this.getID(), message.getInstance(), message.getValue());
 
 
@@ -276,40 +303,31 @@ public class Server extends HDLProcess {
 		}
 	}
 
-	private void handleRoundChange(LinkMessage round_change) throws InterruptedException {
-		// not needed for now -> stage 2
-	}
-
 	private void decide(BFTMessage message) throws InterruptedException {
-		// Maybe useful for 2nd stage?
-		// if (!this.equals(InstanceManager.getLeader(message.getInstance(), message.getRound()))) instance++;
+		BlockchainNode block = message.getValue();
+		blockchainState.append(message.getInstance(), block);
 
-		blockchainState.append(message.getInstance(), message.getValue());
-
-		// Lookup for the client request to give the response
-		int idx = -1;
-		for (int i = pendingRequests.size()-1; i >= 0; i--) {
-			if (pendingRequests.get(i).getKey().equals(message.getValue())) {
-				idx = i;
-				break;
+		for (Transaction t :block.getTransactions()) {
+			// Lookup for the 
+			int idx = -1;
+			for (int i = pendingRequests.size() - 1; i >= 0; i--) {
+				if (pendingRequests.get(i).getKey().equals(t)) {
+					idx = i;
+					break;
+				}
 			}
-		}
-		if (idx == -1) {
-			System.err.printf("%sServer %d request %s was lost %n",
-				InstanceManager.getLeader(message.getInstance(), round).equals(this)? "[L] ": "", this.getID(), message.getValue());
-			return;
-		}
-		HDLProcess client = pendingRequests.remove(idx).getValue();
-		System.out.printf("%sServer %d deciding for client %s with proposed value %s at instance %d %n",
-			InstanceManager.getLeader(message.getInstance(), round).equals(this)? "[L] ": "", this.getID(), client, message.getValue(), message.getInstance());
+			if (idx == -1) {
+				System.err.printf("%sServer %d request %s was lost %n",
+					InstanceManager.getLeader(message.getInstance(), round).equals(this)? "[L] ": "", this.getID(), block);
+				return;
+			}
+			HDLProcess client = pendingRequests.remove(idx).getValue();
+			System.out.printf("%sServer %d deciding for client %s with proposed value %s at instance %d %n",
+			InstanceManager.getLeader(message.getInstance(), round).equals(this)? "[L] ": "", this.getID(), client, block, message.getInstance());
 
-		ClientResponseMessage response = new ClientResponseMessage(ClientResponseMessage.Status.OK, message.getInstance());
-		LinkMessage toSend = new LinkMessage(response, this, client);
-		channel.send(toSend);
-
-		// Start consensus of remain client requests
-		if (!pendingRequests.isEmpty()) {
-			startConsensus(pendingRequests.get(0).getKey());
+			ClientResponseMessage response = new ClientResponseMessage(ClientResponseMessage.Status.OK, message.getInstance());
+			LinkMessage toSend = new LinkMessage(response, this, client);
+			channel.send(toSend);
 		}
 	}
 

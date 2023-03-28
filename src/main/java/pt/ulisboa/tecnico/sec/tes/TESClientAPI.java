@@ -2,6 +2,8 @@ package pt.ulisboa.tecnico.sec.tes;
 
 import java.net.SocketTimeoutException;
 import java.net.UnknownHostException;
+import java.security.PrivateKey;
+import java.security.PublicKey;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -20,24 +22,37 @@ import pt.ulisboa.tecnico.sec.messages.Message;
 public class TESClientAPI extends HDLProcess {
 
     private AuthenticatedPerfectLink channel;
+    private int nonce;
 
     public TESClientAPI(int id) throws UnknownHostException {
         super(id);
         this.channel = new AuthenticatedPerfectLink(this);
+        nonce = 0;
     }
 
-    public ClientResponseMessage append(String string) throws IllegalStateException, InterruptedException {
+    public ClientResponseMessage createAccount(PublicKey clientKey, PrivateKey privKey) throws IllegalStateException, InterruptedException {
+        Transaction t = Transaction.createAccountTransaction(clientKey);
+        t.authenticateTransaction(nonce++, privKey);
+        return this.appendTransaction(t);
+    }
+
+    public ClientResponseMessage transfer(PublicKey source, PublicKey destination, double amount, PrivateKey sourceAuthKey) throws IllegalStateException, InterruptedException {
+        Transaction t = Transaction.transferTransaction(source, destination, amount);
+        t.authenticateTransaction(nonce++, sourceAuthKey);
+        return this.appendTransaction(t);
+    }
+
+    private ClientResponseMessage appendTransaction(Transaction transaction) throws IllegalStateException, InterruptedException {
         // protecting against client multithread
         synchronized(this) {
-
             List<Integer> sendersId = new ArrayList<>();
             Map<SimpleImmutableEntry<ClientResponseMessage.Status, Integer>, Integer> responsesCount = new HashMap<>();
 
-            ClientRequestMessage request = new ClientRequestMessage(string);
+            ClientRequestMessage request = new ClientRequestMessage(transaction);
             BestEffortBroadcast broadcastChannel = new BestEffortBroadcast(channel, InstanceManager.getAllParticipants());
             broadcastChannel.broadcast(request);
 
-            // Waiting until we get MAX responses allowed
+            // Waiting until get f+1 responses
             while (true) {
                 LinkMessage response = null;
                 try {
