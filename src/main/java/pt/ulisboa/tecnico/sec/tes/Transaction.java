@@ -214,7 +214,8 @@ public class Transaction {
 
     @Override
     public String toString() {
-        return String.format("[transaction:%s; %s]", _operation.toString(), 
+        return String.format("{op: %s, sender: %s, receiver: %s, amount: %s}", _operation.toString(),
+            _clientKey == null ? "NONE" : _clientKey.hashCode(), _destination == null ? "NONE" : _destination.hashCode(),
             (_operation.equals(Operation.TRANSFER)? "amount=" + _amount: ""));
     }
 }

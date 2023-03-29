@@ -115,6 +115,7 @@ public class StubbornLink extends Channel {
                 this.getAckMessage(message.getId());
             } catch (InterruptedException e) {
                 // just stop the thread
+                e.printStackTrace();
             }
         });
 
@@ -149,7 +150,7 @@ public class StubbornLink extends Channel {
             timeout_ms *= TIMEOUT_MULTIPLIER;
         }
 
-        System.err.printf("[%s] SL: ACK verified after %d attempts!%n", this.owner, count);
+        System.err.printf("[%s] SL: ACK verified after %d attempt%s!%n", this.owner, count, count == 1 ? "s" : "");
     }
 
 

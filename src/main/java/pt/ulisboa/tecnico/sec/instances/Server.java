@@ -256,6 +256,7 @@ public class Server extends HDLProcess {
 	private void handlePrepare(LinkMessage prepare) throws InterruptedException {
 		BFTMessage message = (BFTMessage) prepare.getMessage();
 
+		System.err.println("Quorum = " + InstanceManager.getQuorum());
 		System.err.printf("%sServer %d received valid PREPARE from %d of consensus %d %n",
 			InstanceManager.getLeader(message.getInstance(), round).equals(this)? "[L] ": "", this.getID(), prepare.getSender().getID(), message.getInstance());
 
@@ -263,7 +264,7 @@ public class Server extends HDLProcess {
 		synchronized (prepareCount) {
 			prepareCount.putIfAbsent(message, new HashSet<>());
 			prepareCount.get(message).add(prepare.getSender().getID());
-			count = prepareCount.get(message).size() + 1;
+			count = prepareCount.get(message).size();
 		}
 
 		// Reaching a quorum of PREPARE messages (given by different servers)
@@ -290,7 +291,7 @@ public class Server extends HDLProcess {
 		synchronized (commitCount) {
 			commitCount.putIfAbsent(message, new HashSet<>());
 			commitCount.get(message).add(commit.getSender().getID());
-			count = commitCount.get(message).size() + 1;
+			count = commitCount.get(message).size();
 		}
 
 		// Reaching a quorum of COMMIT messages (given by different servers)

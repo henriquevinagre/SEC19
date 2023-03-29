@@ -12,7 +12,7 @@ import java.util.List;
 import pt.ulisboa.tecnico.sec.tes.Transaction;
 
 public class BlockchainNode {
-    public static final int NODE_SIZE = 1;
+    public static final int NODE_SIZE = 2;
     public static final int TRANSACTION_FEE = 1; // every transaction must pay 1 coin to the block producer
     private List<Transaction> transactions;
     private List<Transaction> rewards;
@@ -125,9 +125,8 @@ public class BlockchainNode {
 
     @Override
     public String toString() {
-        String res = "";
-        for (Transaction t : transactions)
-            res += t.toString() + "\\";
-        return String.format("[transactions:'%s']", res);
+        //String res = String.join(" \\ ", transactions.stream().map((t) -> t.toString()).collect(Collectors.joining()));
+        String res = String.join(" \\ ", transactions.stream().map((t) -> t.toString()).toArray(CharSequence[]::new));
+        return String.format("[Transactions:'%s']", res);
     }
 }
