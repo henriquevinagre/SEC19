@@ -5,6 +5,7 @@ import static org.junit.Assert.assertTrue;
 import java.io.OutputStream;
 import java.io.PrintStream;
 import java.net.UnknownHostException;
+import java.security.PublicKey;
 import java.util.List;
 
 import org.junit.After;
@@ -18,6 +19,8 @@ import pt.ulisboa.tecnico.sec.links.StubbornLink;
 import pt.ulisboa.tecnico.sec.messages.ClientRequestMessage;
 import pt.ulisboa.tecnico.sec.messages.LinkMessage;
 import pt.ulisboa.tecnico.sec.messages.Message;
+import pt.ulisboa.tecnico.sec.tes.transactions.CreateAccountTransaction;
+import pt.ulisboa.tecnico.sec.tes.transactions.Transaction;
 
 /**
  * Unit test for stubborn point to point link.
@@ -33,7 +36,7 @@ public class StubbornLinkTest {
         // Surpress link debug output
         PrintStream nullPrintStream = new PrintStream(OutputStream.nullOutputStream());
         System.setErr(nullPrintStream);
-        
+
         p1 = new HDLProcess(0);
         p2 = new HDLProcess(1);
 
@@ -52,8 +55,9 @@ public class StubbornLinkTest {
     @Test
     public void checkComunication() throws InterruptedException {
         // p1 prepares request
-        String value = "Hello p2!";
-        ClientRequestMessage p1Message = new ClientRequestMessage(value);
+        PublicKey key = KeyHandler.generateAccountKeyPair().getPublic();
+        Transaction t = new CreateAccountTransaction(key);
+        ClientRequestMessage p1Message = new ClientRequestMessage(t);
         LinkMessage request = new LinkMessage(p1Message, p1, p2);
 
         // p2 waiting for a message
@@ -66,19 +70,19 @@ public class StubbornLinkTest {
 
         // p1 waits for p2 delivers its message
         p2Thread.join();
-        
+
         // check received message
         LinkMessage receivedMessage = p2Execution.getReceivedMessage();
 
         assertTrue("Incorrect sender", receivedMessage.getSender() == p1);
         assertTrue("Terminated flag may not be on", receivedMessage.getTerminate() == false);
 
-        assertTrue("Receive message should be a client request", 
+        assertTrue("Receive message should be a client request",
             receivedMessage.getMessage().getMessageType().equals(Message.MessageType.CLIENT_REQUEST));
-        
+
         ClientRequestMessage p2Message = (ClientRequestMessage) receivedMessage.getMessage();
 
-        assertTrue("Received message differs from the one p1 sent", p2Message.getValue().equals(value));
+        assertTrue("Received message differs from the one p1 sent", p2Message.getTransaction().equals(t));
     }
 
     @After

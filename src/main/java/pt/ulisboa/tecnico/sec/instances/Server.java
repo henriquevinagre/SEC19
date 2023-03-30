@@ -209,11 +209,7 @@ public class Server extends HDLProcess {
 		ClientRequestMessage requestMessage = (ClientRequestMessage) request.getMessage();
 		Transaction transaction = requestMessage.getTransaction();
 
-		System.out.println("Checking Transaction, correctly signed: " + transaction.validateTransaction());
-
 		if (!tesState.checkTransaction(transaction)) return; // TODO: Send rejection message to client :(
-
-		System.out.println("Transaction is valid");
 
 		BlockchainNode toProposeCopy = null;
 
@@ -309,9 +305,32 @@ public class Server extends HDLProcess {
 
 	private void decide(BFTMessage message) throws InterruptedException {
 		BlockchainNode block = message.getValue();
-		blockchainState.append(message.getInstance(), block);
 
-		for (Transaction transaction : block.getTransactions()) {
+		System.out.printf("%sServer %d processing block size %d %n",
+						InstanceManager.getLeader(message.getInstance(), round).equals(this)? "[L] ": "", this.getID(), block.getTransactions().size());
+
+		for (int j = 0; j < block.getTransactions().size(); j++) {
+			Transaction transaction = block.getTransactions().get(j);
+			System.out.printf("%sServer %d processing %s %n",
+						InstanceManager.getLeader(message.getInstance(), round).equals(this)? "[L] ": "", this.getID(), transaction.toString());
+			// Perform transaction (in a whole)
+			switch (transaction.getOperation()) {
+				case CREATE_ACCOUNT:
+					TESAccount newAccount = new TESAccount(transaction.getSource());
+					tesState.addAccount(newAccount);	// this maybe in another class
+					break;
+				case TRANSFER:
+					TransferTransaction transferTransaction = (TransferTransaction) transaction;
+					TESAccount sourceAccount = tesState.getAccount(transferTransaction.getSource());
+					TESAccount destinationAccount = tesState.getAccount(transferTransaction.getDestination());
+					// FIXME : add balances are protected (maybe this in another class)
+					break;
+				default:
+					System.err.printf("%sServer %d request %s not recognized %n",
+						InstanceManager.getLeader(message.getInstance(), round).equals(this)? "[L] ": "", this.getID(), transaction);
+					continue;
+			}
+
 			// Lookup for the source of the transaction
 			int idx = -1;
 			for (int i = pendingRequests.size() - 1; i >= 0; i--) {
@@ -326,24 +345,6 @@ public class Server extends HDLProcess {
 				continue;
 			}
 
-			// Perform transaction (in a whole)
-			switch (transaction.getOperation()) {
-				case CREATE_ACCOUNT:
-					TESAccount newAccount = new TESAccount(transaction.getSource());
-					tesState.addAccount(newAccount);	// this maybe in another class
-					break;
-				case TRANSFER:
-					TransferTransaction transferTransaction = (TransferTransaction) transaction;
-					TESAccount sourceAccount = tesState.getAccount(transferTransaction.getSource());
-					TESAccount destinationAccount = tesState.getAccount(transferTransaction.getDestination());
-					// FIXME : add balances are protected (maybe this in another class)
-			
-				default:
-					System.err.printf("%sServer %d request %s not recognized %n",
-						InstanceManager.getLeader(message.getInstance(), round).equals(this)? "[L] ": "", this.getID(), transaction);
-					continue;
-			}
-			
 			// Sending response to the client
 			HDLProcess client = pendingRequests.remove(idx).getValue();
 			System.out.printf("%sServer %d deciding for client %s with proposed value %s at instance %d %n",
@@ -351,8 +352,17 @@ public class Server extends HDLProcess {
 
 			ClientResponseMessage response = new ClientResponseMessage(ClientResponseMessage.Status.OK, message.getInstance());
 			LinkMessage toSend = new LinkMessage(response, this, client);
-			channel.send(toSend);
+
+			new Thread(() -> {
+				try {
+					channel.send(toSend);
+				} catch (IllegalStateException | InterruptedException e) {
+					e.printStackTrace();
+				}
+			}).start();
 		}
+
+		blockchainState.append(message.getInstance(), block);
 	}
 
 	public void kill() {

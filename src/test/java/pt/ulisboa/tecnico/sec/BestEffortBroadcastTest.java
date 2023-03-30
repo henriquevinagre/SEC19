@@ -5,6 +5,7 @@ import static org.junit.Assert.assertTrue;
 import java.io.OutputStream;
 import java.io.PrintStream;
 import java.net.UnknownHostException;
+import java.security.PublicKey;
 import java.util.List;
 
 import org.junit.After;
@@ -19,6 +20,8 @@ import pt.ulisboa.tecnico.sec.links.AuthenticatedPerfectLink;
 import pt.ulisboa.tecnico.sec.messages.ClientRequestMessage;
 import pt.ulisboa.tecnico.sec.messages.LinkMessage;
 import pt.ulisboa.tecnico.sec.messages.Message;
+import pt.ulisboa.tecnico.sec.tes.transactions.CreateAccountTransaction;
+import pt.ulisboa.tecnico.sec.tes.transactions.Transaction;
 
 /**
  * Unit test for best effort broadcast.
@@ -33,7 +36,7 @@ public class BestEffortBroadcastTest {
 
     @Before
     public void setup() throws UnknownHostException {
-        
+
         // Surpress link debug output
         PrintStream nullPrintStream = new PrintStream(OutputStream.nullOutputStream());
         System.setErr(nullPrintStream);
@@ -64,10 +67,11 @@ public class BestEffortBroadcastTest {
     public void checkComunication() throws InterruptedException {
 
         // p1 prepares request
-        String value = "Hello all!";
-        ClientRequestMessage messageToAnyOne = new ClientRequestMessage(value);
+        PublicKey key = KeyHandler.generateAccountKeyPair().getPublic();
+        Transaction t = new CreateAccountTransaction(key);
+        ClientRequestMessage messageToAnyOne = new ClientRequestMessage(t);
 
-        // p2 and p3 execution waiting for the 
+        // p2 and p3 execution waiting for the
         BroadcastDeliverExecution p1Execution = new BroadcastDeliverExecution(beb1);
         BroadcastDeliverExecution p2Execution = new BroadcastDeliverExecution(beb2);
         BroadcastDeliverExecution p3Execution = new BroadcastDeliverExecution(beb3);
@@ -85,7 +89,7 @@ public class BestEffortBroadcastTest {
         p1Thread.join();
         p2Thread.join();
         p3Thread.join();
-        
+
         // check received message
         LinkMessage receivedMessageP1 = p1Execution.getReceivedMessage();
         LinkMessage receivedMessageP2 = p2Execution.getReceivedMessage();
@@ -95,22 +99,22 @@ public class BestEffortBroadcastTest {
         assertTrue("Incorrect sender for p2", receivedMessageP2.getSender() == p1);
         assertTrue("Incorrect sender for p3", receivedMessageP3.getSender() == p1);
 
-        assertTrue("p1 should receive its client request", 
+        assertTrue("p1 should receive its client request",
             receivedMessageP1.getMessage().getMessageType().equals(Message.MessageType.CLIENT_REQUEST));
 
-        assertTrue("p2 should receive a client request", 
+        assertTrue("p2 should receive a client request",
             receivedMessageP2.getMessage().getMessageType().equals(Message.MessageType.CLIENT_REQUEST));
-        
-        assertTrue("p3 should receive a client request", 
+
+        assertTrue("p3 should receive a client request",
             receivedMessageP3.getMessage().getMessageType().equals(Message.MessageType.CLIENT_REQUEST));
-        
+
         ClientRequestMessage p1Message = (ClientRequestMessage) receivedMessageP1.getMessage();
         ClientRequestMessage p2Message = (ClientRequestMessage) receivedMessageP2.getMessage();
         ClientRequestMessage p3Message = (ClientRequestMessage) receivedMessageP3.getMessage();
 
-        assertTrue("Received message differs from the initial", p1Message.getValue().equals(value));
-        assertTrue("Received message differs from the one p1 wanted to sent", p2Message.getValue().equals(value));
-        assertTrue("Received message differs from the one p1 wanted to sent", p3Message.getValue().equals(value));
+        assertTrue("Received message differs from the initial", p1Message.getTransaction().equals(t));
+        assertTrue("Received message differs from the one p1 wanted to sent", p2Message.getTransaction().equals(t));
+        assertTrue("Received message differs from the one p1 wanted to sent", p3Message.getTransaction().equals(t));
     }
 
     @After
