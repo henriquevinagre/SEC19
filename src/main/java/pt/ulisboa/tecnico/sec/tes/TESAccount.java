@@ -5,7 +5,7 @@ import java.security.PublicKey;
 // Account of the TES
 public class TESAccount {
 
-    private static final double INIT_BALANCE = 5f;
+    private static final double INIT_BALANCE = 100f;
 
     private PublicKey _id;
     private double _tucs;   // balance
@@ -23,21 +23,21 @@ public class TESAccount {
         return _tucs;
     }
 
-    protected double addBalance(double amount) {
+    public double addBalance(double amount) {
         return _tucs += amount;
     }
 
-    protected double subtractBalance(double amount) {
+    public double subtractBalance(double amount) {
         return _tucs -= amount;
     }
 
-    protected double setBalance(double tucs) {
+    public double setBalance(double tucs) {
         return _tucs = tucs;
     }
 
     @Override
     public String toString() {
-        return String.format("Account<%d, %f>", this.getID().hashCode(), this.getTucs());
+        return String.format("Account<" + this.getID().getEncoded() + ", %f>", this.getTucs());
     }
 
 }

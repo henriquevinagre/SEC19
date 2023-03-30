@@ -5,8 +5,11 @@ import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
 import java.security.PublicKey;
+import java.util.Base64;
 
 import pt.ulisboa.tecnico.sec.crypto.KeyHandler;
+import pt.ulisboa.tecnico.sec.tes.TESAccount;
+import pt.ulisboa.tecnico.sec.tes.TESState;
 
 public class TransferTransaction extends Transaction {
 
@@ -26,6 +29,7 @@ public class TransferTransaction extends Transaction {
     private void setAmount(double amount) { _amount = amount; }
 
     public PublicKey getDestination() { return _destination; }
+    public String getDestinationB64() { return Base64.getEncoder().encodeToString(_destination.getEncoded()); }
     public double getAmount() { return _amount; }
 
 
@@ -107,6 +111,23 @@ public class TransferTransaction extends Transaction {
     }
 
     @Override
+    public boolean updateTESState(TESState state) {
+        TESAccount sourceAccount = state.getAccount(this.getSource());
+        if (sourceAccount == null) return false;
+        TESAccount destinationAccount = state.getAccount(this.getDestination());
+        if (destinationAccount == null) return false;
+
+        if (sourceAccount.getTucs() < _amount || _amount >= Double.MAX_VALUE - destinationAccount.getTucs()) {
+            return false;
+        }
+
+        sourceAccount.subtractBalance(_amount);
+        destinationAccount.addBalance(_amount);
+
+        return true;
+    }
+
+    @Override
     public boolean equals(Object obj) {
         if (!(obj instanceof TransferTransaction)) return false;
         TransferTransaction t = (TransferTransaction) obj;
@@ -128,6 +149,6 @@ public class TransferTransaction extends Transaction {
     @Override
     public String toString() {
         return String.format("{op: TRANSFER, source: %s, destination: %s, amount: %.2f}", 
-            this.getSource().hashCode(), this.getDestination().hashCode(), this.getAmount());
+            this.getSourceB64().substring(46, 62), this.getDestinationB64().substring(46, 62), this.getAmount());
     }
 }

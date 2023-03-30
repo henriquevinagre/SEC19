@@ -43,6 +43,7 @@ public class Client {
 			response = api.createAccount(accountPair.getPublic(), accountPair.getPrivate());
 			System.out.printf("Client %d: Request for message '" + this.message + "' completed with status %s %s%n", this.id, response.getStatus(),
 				((response.getTimestamp() != null)? "at block " + response.getTimestamp() : ""));
+			// api.transfer(accountPair.getPublic(), InstanceManager.getLeader(0, 0).getPublicKey(), 99f, accountPair.getPrivate());
 		} catch (IllegalStateException | InterruptedException e) {
 			System.out.printf("Client %d: Request did not perform well. Try again!", this.id);
 		} finally {

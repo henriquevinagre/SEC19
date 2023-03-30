@@ -1,8 +1,31 @@
-0
+1
 # ^ (F) byzantine servers to be supported
 
 # Clients
 C Never Gonna
+C Give you up
+C Give you up
+C Give you up
+C Give you up
+C Give you up
+C Give you up
+C Give you up
+C Give you up
+C Give you up
+C Give you up
+C Give you up
+C Give you up
+C Give you up
+C Give you up
+C Give you up
+C Give you up
+C Give you up
+C Give you up
+C Give you up
+C Give you up
+C Give you up
+C Give you up
+C Give you up
 C Give you up
 
 # (N) Servers

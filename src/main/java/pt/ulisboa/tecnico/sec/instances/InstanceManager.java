@@ -5,7 +5,7 @@ import java.io.FileReader;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.io.PrintStream;
-
+import java.net.UnknownHostException;
 import java.util.stream.Collectors;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -14,6 +14,8 @@ import java.util.Map;
 
 import pt.ulisboa.tecnico.sec.crypto.KeyHandler;
 import pt.ulisboa.tecnico.sec.ibft.HDLProcess;
+import pt.ulisboa.tecnico.sec.tes.TESAccount;
+import pt.ulisboa.tecnico.sec.tes.TESClientAPI;
 
 public class InstanceManager {
 
@@ -101,6 +103,25 @@ public class InstanceManager {
             });
             t.start();
             serverThreads.put(server, t);
+        }
+
+        // Map<Server, Thread> createAccountThreads = new HashMap<>();
+        // for (Server server : _servers) {
+        //     Thread t = new Thread(() -> {
+        //         try {
+        //             server.submitCreateAccountTransaction();
+        //         } catch (UnknownHostException | IllegalStateException | InterruptedException e) {
+        //             e.printStackTrace();
+        //         }
+        //     });
+        //     t.start();
+        //     createAccountThreads.put(server, t);
+        // }
+
+        for (Server s1 : _servers) {
+            for (Server s2 : _servers) {
+                s1.gTesState().addAccount(new TESAccount(s2.getPublicKey()));
+            }
         }
 
         Map<Client, Thread> clientThreads = new HashMap<>();

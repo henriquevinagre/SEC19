@@ -6,6 +6,9 @@ import java.io.DataOutputStream;
 import java.io.IOException;
 import java.security.PublicKey;
 
+import pt.ulisboa.tecnico.sec.tes.TESState;
+import pt.ulisboa.tecnico.sec.tes.TESAccount;
+
 public class CreateAccountTransaction extends Transaction {
 
     public CreateAccountTransaction(PublicKey creator) {
@@ -62,6 +65,17 @@ public class CreateAccountTransaction extends Transaction {
     }
 
     @Override
+    public boolean updateTESState(TESState state) {
+        if (state.getAccount(this.getSource()) != null) {
+            return false;
+        }
+        TESAccount newAccount = new TESAccount(this.getSource());
+		state.addAccount(newAccount);
+
+        return true;
+    }
+
+    @Override
     public boolean equals(Object obj) {
         if (!(obj instanceof CreateAccountTransaction)) return false;
         CreateAccountTransaction t = (CreateAccountTransaction) obj;
@@ -75,6 +89,6 @@ public class CreateAccountTransaction extends Transaction {
 
     @Override
     public String toString() {
-        return String.format("{op: CREATE_ACCOUNT, creator: %s}", this.getSource().hashCode());
+        return String.format("{op: CREATE_ACCOUNT, creator: %s}", getSourceB64().substring(46, 62));
     }
 }

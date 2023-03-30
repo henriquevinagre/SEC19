@@ -5,9 +5,11 @@ import java.io.DataInputStream;
 import java.io.IOException;
 import java.security.PrivateKey;
 import java.security.PublicKey;
+import java.util.Base64;
 
 import pt.ulisboa.tecnico.sec.crypto.AuthenticationHandler;
 import pt.ulisboa.tecnico.sec.crypto.KeyHandler;
+import pt.ulisboa.tecnico.sec.tes.TESState;
 
 // TES Transactions
 public abstract class Transaction {
@@ -31,6 +33,7 @@ public abstract class Transaction {
     private void setChallenge(String challenge) { _challenge = challenge; }
 
     public PublicKey getSource() { return _source; }
+    public String getSourceB64() { return Base64.getEncoder().encodeToString(_source.getEncoded()); }
     public TESOperation getOperation() { return _operation; }
     protected int getNonce() { return _nonce; }
     protected String getChallenge() { return _challenge; }
@@ -113,6 +116,8 @@ public abstract class Transaction {
     }
 
     public abstract byte[] getDataBytes() throws IOException;
+
+    public abstract boolean updateTESState(TESState state);
 
     @Override
     public boolean equals(Object obj) {

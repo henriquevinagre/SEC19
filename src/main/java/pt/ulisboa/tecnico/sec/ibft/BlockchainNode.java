@@ -13,6 +13,7 @@ import pt.ulisboa.tecnico.sec.tes.transactions.Transaction;
 import pt.ulisboa.tecnico.sec.tes.transactions.TransferTransaction;
 
 public class BlockchainNode {
+    public static final int FILL_TIMEOUT = 2000; // ms
     public static final int NODE_SIZE = 2;
     public static final int TRANSACTION_FEE = 1; // every transaction must pay 1 coin to the block producer
     private List<Transaction> transactions;

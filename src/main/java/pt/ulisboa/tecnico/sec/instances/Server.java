@@ -20,6 +20,7 @@ import pt.ulisboa.tecnico.sec.messages.ClientRequestMessage;
 import pt.ulisboa.tecnico.sec.messages.ClientResponseMessage;
 import pt.ulisboa.tecnico.sec.messages.LinkMessage;
 import pt.ulisboa.tecnico.sec.tes.TESAccount;
+import pt.ulisboa.tecnico.sec.tes.TESClientAPI;
 import pt.ulisboa.tecnico.sec.tes.TESState;
 import pt.ulisboa.tecnico.sec.tes.transactions.Transaction;
 import pt.ulisboa.tecnico.sec.tes.transactions.TransferTransaction;
@@ -55,6 +56,10 @@ public class Server extends HDLProcess {
 		tesState = new TESState();
 	}
 
+	public TESState gTesState() {
+		return tesState;
+	}
+
 	public String getBlockChainState() {
 		return blockchainState.toString();
 	}
@@ -63,7 +68,13 @@ public class Server extends HDLProcess {
         return blockchainState.getRaw();
     }
 
-	public void execute() {
+	// public void submitCreateAccountTransaction() throws UnknownHostException, IllegalStateException, InterruptedException {
+	// 	TESClientAPI api = new TESClientAPI(this.getID());
+	// 	api.createAccount(getPublicKey(), getPrivateKey());
+	// 	// TODO check response
+	// }
+
+	public void execute() throws IllegalThreadStateException {
 		ibftBroadcast = new BestEffortBroadcast(channel, InstanceManager.getAllParticipants());
 
 		this.running = true;
@@ -83,11 +94,9 @@ public class Server extends HDLProcess {
 					}
 					try {
 						handleIncomingMessage(requestMessage);
-					} catch (IllegalStateException | NullPointerException e) {
+					} catch (IllegalStateException | NullPointerException | InterruptedException e) {
 						e.printStackTrace();
 						System.err.printf("Server %d %s catch %s%n", this.getID(), Thread.currentThread().getName(), e.toString());
-					} catch (InterruptedException e) {
-						e.printStackTrace(System.out);
 					} finally {
 						synchronized (activeHandlerThreads) {
 							activeHandlerThreads.remove(Thread.currentThread());
@@ -187,33 +196,10 @@ public class Server extends HDLProcess {
 		}
 	}
 
-	// private boolean checkTransaction(Transaction transaction) {
-	// 	TESAccount srcAccount = tesState.getAccount(transaction.getClientKey());
-	// 	TESAccount dstAccount = tesState.getAccount(transaction.getDestination());
-	// 	double amount = transaction.getAmount();
-
-	// 	//System.out.printf("Transaction with empty set? " + tesState.isEmpty() + ", operation=%d, src=" + srcAccount + ", dst=" + dstAccount + ", amount=%f%n", transaction.getOperation().ordinal(), amount);
-
-	// 	switch (transaction.getOperation()) {
-	// 		case CREATE_ACCOUNT:
-	// 			return transaction.getClientKey() != null && dstAccount == null && amount == 0;
-	// 		case TRANSFER:
-	// 			return srcAccount != null && dstAccount != null &&
-	// 				amount > 0 && amount <= srcAccount.getTucs() && amount < Double.MAX_VALUE - dstAccount.getTucs(); // NO OVERFLOW ALLOWED!!!
-	// 		default:
-	// 			return false;
-	// 	}
-	// }
-
-	private void handleClientRequest(LinkMessage request) throws InterruptedException {
-		ClientRequestMessage requestMessage = (ClientRequestMessage) request.getMessage();
-		Transaction transaction = requestMessage.getTransaction();
-
-		if (!tesState.checkTransaction(transaction)) return; // TODO: Send rejection message to client :(
-
+	private void addTransactionToBlockchain(Transaction transaction) throws InterruptedException {
 		BlockchainNode toProposeCopy = null;
 
-		synchronized (toProposeLock) {			// TODO: Timeout for filling the block
+		synchronized (toProposeLock) {
 			toPropose.addTransaction(transaction, this.getPublicKey());
 			if (toPropose.isFull()) {
 				toProposeCopy = new BlockchainNode(toPropose.getTransactions(), toPropose.getRewards());
@@ -221,9 +207,42 @@ public class Server extends HDLProcess {
 			}
 		}
 
+		if (toProposeCopy != null) {
+			startConsensus(toProposeCopy);
+		}
+	}
+
+	private void sendClientResponse(HDLProcess client, ClientResponseMessage.Status status, int instance) throws IllegalStateException, InterruptedException {
+		ClientResponseMessage response = new ClientResponseMessage(status, instance);
+		LinkMessage toSend = new LinkMessage(response, this, client);
+
+		channel.send(toSend);
+	}
+
+	private void handleClientRequest(LinkMessage request) throws InterruptedException {
+		ClientRequestMessage requestMessage = (ClientRequestMessage) request.getMessage();
+		Transaction transaction = requestMessage.getTransaction();
+
+		if (!transaction.validateTransaction()) {
+            sendClientResponse(request.getSender(), ClientResponseMessage.Status.REJECTED, -1);
+			return;
+		}
+
 		pendingRequests.add(new SimpleImmutableEntry<>(transaction, request.getSender()));
 
-		if (toProposeCopy != null) {
+		BlockchainNode toProposeCopy = new BlockchainNode(toPropose.getTransactions(), toPropose.getRewards());
+		addTransactionToBlockchain(transaction);
+
+		Thread.sleep(BlockchainNode.FILL_TIMEOUT);
+
+		boolean start = false;
+		synchronized (toProposeLock) {
+			if (toPropose.equals(toProposeCopy)) {
+				start = true;
+				toPropose = new BlockchainNode();
+			}
+		}
+		if (start) {
 			startConsensus(toProposeCopy);
 		}
 	}
@@ -306,30 +325,10 @@ public class Server extends HDLProcess {
 	private void decide(BFTMessage message) throws InterruptedException {
 		BlockchainNode block = message.getValue();
 
-		System.out.printf("%sServer %d processing block size %d %n",
-						InstanceManager.getLeader(message.getInstance(), round).equals(this)? "[L] ": "", this.getID(), block.getTransactions().size());
-
 		for (int j = 0; j < block.getTransactions().size(); j++) {
 			Transaction transaction = block.getTransactions().get(j);
-			System.out.printf("%sServer %d processing %s %n",
-						InstanceManager.getLeader(message.getInstance(), round).equals(this)? "[L] ": "", this.getID(), transaction.toString());
 			// Perform transaction (in a whole)
-			switch (transaction.getOperation()) {
-				case CREATE_ACCOUNT:
-					TESAccount newAccount = new TESAccount(transaction.getSource());
-					tesState.addAccount(newAccount);	// this maybe in another class
-					break;
-				case TRANSFER:
-					TransferTransaction transferTransaction = (TransferTransaction) transaction;
-					TESAccount sourceAccount = tesState.getAccount(transferTransaction.getSource());
-					TESAccount destinationAccount = tesState.getAccount(transferTransaction.getDestination());
-					// FIXME : add balances are protected (maybe this in another class)
-					break;
-				default:
-					System.err.printf("%sServer %d request %s not recognized %n",
-						InstanceManager.getLeader(message.getInstance(), round).equals(this)? "[L] ": "", this.getID(), transaction);
-					continue;
-			}
+			boolean successfulTransaction = transaction.updateTESState(tesState);
 
 			// Lookup for the source of the transaction
 			int idx = -1;
@@ -350,16 +349,19 @@ public class Server extends HDLProcess {
 			System.out.printf("%sServer %d deciding for client %s with proposed value %s at instance %d %n",
 				InstanceManager.getLeader(message.getInstance(), round).equals(this)? "[L] ": "", this.getID(), client, block, message.getInstance());
 
-			ClientResponseMessage response = new ClientResponseMessage(ClientResponseMessage.Status.OK, message.getInstance());
-			LinkMessage toSend = new LinkMessage(response, this, client);
+			ClientResponseMessage.Status status = successfulTransaction ? ClientResponseMessage.Status.OK : ClientResponseMessage.Status.REJECTED;
 
 			new Thread(() -> {
 				try {
-					channel.send(toSend);
+					sendClientResponse(client, status, message.getInstance());
 				} catch (IllegalStateException | InterruptedException e) {
 					e.printStackTrace();
 				}
 			}).start();
+		}
+
+		for (Transaction t : block.getRewards()) {
+			t.updateTESState(tesState);
 		}
 
 		blockchainState.append(message.getInstance(), block);
