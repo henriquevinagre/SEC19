@@ -5,7 +5,7 @@ import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
 
-import pt.ulisboa.tecnico.sec.tes.Transaction;
+import pt.ulisboa.tecnico.sec.tes.transactions.Transaction;
 
 public class ClientRequestMessage extends Message {
 

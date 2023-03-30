@@ -2,6 +2,7 @@ package pt.ulisboa.tecnico.sec.tes;
 
 import java.security.PublicKey;
 
+// Account of the TES
 public class TESAccount {
 
     private static final double INIT_BALANCE = 5f;
@@ -9,7 +10,7 @@ public class TESAccount {
     private PublicKey _id;
     private double _tucs;   // balance
 
-    TESAccount(PublicKey id) {
+    public TESAccount(PublicKey id) {
         _id = id;
         _tucs = INIT_BALANCE;
     }
@@ -32,6 +33,11 @@ public class TESAccount {
 
     protected double setBalance(double tucs) {
         return _tucs = tucs;
+    }
+
+    @Override
+    public String toString() {
+        return String.format("Account<%d, %f>", this.getID().hashCode(), this.getTucs());
     }
 
 }

@@ -18,6 +18,9 @@ import pt.ulisboa.tecnico.sec.messages.ClientRequestMessage;
 import pt.ulisboa.tecnico.sec.messages.ClientResponseMessage;
 import pt.ulisboa.tecnico.sec.messages.LinkMessage;
 import pt.ulisboa.tecnico.sec.messages.Message;
+import pt.ulisboa.tecnico.sec.tes.transactions.CreateAccountTransaction;
+import pt.ulisboa.tecnico.sec.tes.transactions.Transaction;
+import pt.ulisboa.tecnico.sec.tes.transactions.TransferTransaction;
 
 public class TESClientAPI extends HDLProcess {
 
@@ -31,19 +34,19 @@ public class TESClientAPI extends HDLProcess {
     }
 
     public ClientResponseMessage createAccount(PublicKey clientKey, PrivateKey privKey) throws IllegalStateException, InterruptedException {
-        Transaction t = Transaction.createAccountTransaction(clientKey);
+        Transaction t = new CreateAccountTransaction(clientKey);
         t.authenticateTransaction(nonce++, privKey);
         return this.appendTransaction(t);
     }
 
     public ClientResponseMessage transfer(PublicKey source, PublicKey destination, double amount, PrivateKey sourceAuthKey) throws IllegalStateException, InterruptedException {
-        Transaction t = Transaction.transferTransaction(source, destination, amount);
+        Transaction t = new TransferTransaction(source, destination, amount);
         t.authenticateTransaction(nonce++, sourceAuthKey);
         return this.appendTransaction(t);
     }
 
     private ClientResponseMessage appendTransaction(Transaction transaction) throws IllegalStateException, InterruptedException {
-        // protecting against client multithread
+        // Protecting against client multithread
         synchronized(this) {
             List<Integer> sendersId = new ArrayList<>();
             Map<SimpleImmutableEntry<ClientResponseMessage.Status, Integer>, Integer> responsesCount = new HashMap<>();

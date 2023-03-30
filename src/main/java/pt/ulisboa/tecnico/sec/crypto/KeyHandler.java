@@ -171,7 +171,7 @@ public class KeyHandler {
             fis.close();
 
             key = new SecretKeySpec(keyBytes, 0, 16, "AES");
-        } catch (Exception e) {
+        } catch (IOException e) {
             throw new IllegalStateException(
                 String.format("[ERROR] Getting secret key for processes %d and %d", id1, id2));
         }
@@ -184,5 +184,31 @@ public class KeyHandler {
             file.delete();
         }
         keysFiles.clear();
+    }
+
+    public static PublicKey deserializePublicKey(byte[] keyBytes) throws IllegalStateException {
+        PublicKey pubKey = null;
+        try {
+            pubKey = KeyFactory.getInstance("RSA").generatePublic(new X509EncodedKeySpec(keyBytes));
+
+        } catch (InvalidKeySpecException | NoSuchAlgorithmException e) {
+            throw new IllegalStateException();
+        }
+        return pubKey;
+    }
+
+    public static PrivateKey deserializePrivateKey(byte[] keyBytes) throws IllegalStateException {
+        PrivateKey prvKey = null;
+        try {
+            prvKey = KeyFactory.getInstance("RSA").generatePrivate(new X509EncodedKeySpec(keyBytes));
+
+        } catch (InvalidKeySpecException | NoSuchAlgorithmException e) {
+            throw new IllegalStateException();
+        }
+        return prvKey;
+    }
+
+    public static SecretKey deserializeSecretKey(byte[] keyBytes) throws IllegalStateException {
+        return new SecretKeySpec(keyBytes, 0, keyBytes.length, "AES");
     }
 }

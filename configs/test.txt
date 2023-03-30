@@ -4,8 +4,11 @@
 # Clients
 C Never Gonna
 C Give you up
+C Give you up
 
 # (N) Servers
 S 8000
 S 8001
+S 8002
+S 8003
 

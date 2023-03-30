@@ -21,7 +21,8 @@ import pt.ulisboa.tecnico.sec.messages.ClientResponseMessage;
 import pt.ulisboa.tecnico.sec.messages.LinkMessage;
 import pt.ulisboa.tecnico.sec.tes.TESAccount;
 import pt.ulisboa.tecnico.sec.tes.TESState;
-import pt.ulisboa.tecnico.sec.tes.Transaction;
+import pt.ulisboa.tecnico.sec.tes.transactions.Transaction;
+import pt.ulisboa.tecnico.sec.tes.transactions.TransferTransaction;
 
 
 public class Server extends HDLProcess {
@@ -141,6 +142,8 @@ public class Server extends HDLProcess {
 		this.selfTerminate();
 		channel.close();
 
+		System.out.println(tesState);
+
 		System.out.printf("Server %d closed%n", this.getID());
 	}
 
@@ -175,46 +178,46 @@ public class Server extends HDLProcess {
 			currentInstance = instance++;
 		}
 		if (this.equals(InstanceManager.getLeader(currentInstance, round))) {
-			System.out.printf("[L] Server %d starting instance %d of consensus %n", this.getID(), this.instance);
+			System.out.printf("[L] Server %d starting instance %d of consensus %n", this.getID(), currentInstance);
 			// Creates PRE_PREPARE message
-			BFTMessage pre_prepare = new BFTMessage(BFTMessage.Type.PRE_PREPARE, currentInstance, 0, value);
+			BFTMessage pre_prepare = new BFTMessage(BFTMessage.Type.PRE_PREPARE, currentInstance, round, value);
 			pre_prepare.signMessage(this.getPrivateKey());
 			// Broadcasts PRE_PREPARE
 			ibftBroadcast.broadcast(pre_prepare);
 		}
 	}
 
-	private boolean checkTransaction(Transaction transaction) {
-		TESAccount srcAccount = tesState.getAccount(transaction.getClientKey());
-		TESAccount dstAccount = tesState.getAccount(transaction.getDestination());
-		double amount = transaction.getAmount();
+	// private boolean checkTransaction(Transaction transaction) {
+	// 	TESAccount srcAccount = tesState.getAccount(transaction.getClientKey());
+	// 	TESAccount dstAccount = tesState.getAccount(transaction.getDestination());
+	// 	double amount = transaction.getAmount();
 
-		//System.out.printf("Transaction with empty set? " + tesState.isEmpty() + ", operation=%d, src=" + srcAccount + ", dst=" + dstAccount + ", amount=%f%n", transaction.getOperation().ordinal(), amount);
+	// 	//System.out.printf("Transaction with empty set? " + tesState.isEmpty() + ", operation=%d, src=" + srcAccount + ", dst=" + dstAccount + ", amount=%f%n", transaction.getOperation().ordinal(), amount);
 
-		switch (transaction.getOperation()) {
-			case CREATE_ACCOUNT:
-				return transaction.getClientKey() != null && dstAccount == null && amount == 0;
-			case TRANSFER:
-				return srcAccount != null && dstAccount != null &&
-					amount > 0 && amount <= srcAccount.getTucs() && amount < Double.MAX_VALUE - dstAccount.getTucs(); // NO OVERFLOW ALLOWED!!!
-			default:
-				return false;
-		}
-	}
+	// 	switch (transaction.getOperation()) {
+	// 		case CREATE_ACCOUNT:
+	// 			return transaction.getClientKey() != null && dstAccount == null && amount == 0;
+	// 		case TRANSFER:
+	// 			return srcAccount != null && dstAccount != null &&
+	// 				amount > 0 && amount <= srcAccount.getTucs() && amount < Double.MAX_VALUE - dstAccount.getTucs(); // NO OVERFLOW ALLOWED!!!
+	// 		default:
+	// 			return false;
+	// 	}
+	// }
 
 	private void handleClientRequest(LinkMessage request) throws InterruptedException {
 		ClientRequestMessage requestMessage = (ClientRequestMessage) request.getMessage();
 		Transaction transaction = requestMessage.getTransaction();
 
-		// System.out.println("Checking Transaction, correctly signed: " + transaction.validateTransaction());
+		System.out.println("Checking Transaction, correctly signed: " + transaction.validateTransaction());
 
-		if (!checkTransaction(transaction) || !transaction.validateTransaction()) return; // TODO: Send rejection message to client :(
+		if (!tesState.checkTransaction(transaction)) return; // TODO: Send rejection message to client :(
 
-		// System.out.println("Transaction is valid");
+		System.out.println("Transaction is valid");
 
 		BlockchainNode toProposeCopy = null;
 
-		synchronized (toProposeLock) {
+		synchronized (toProposeLock) {			// TODO: Timeout for filling the block
 			toPropose.addTransaction(transaction, this.getPublicKey());
 			if (toPropose.isFull()) {
 				toProposeCopy = new BlockchainNode(toPropose.getTransactions(), toPropose.getRewards());
@@ -308,23 +311,43 @@ public class Server extends HDLProcess {
 		BlockchainNode block = message.getValue();
 		blockchainState.append(message.getInstance(), block);
 
-		for (Transaction t :block.getTransactions()) {
-			// Lookup for the 
+		for (Transaction transaction : block.getTransactions()) {
+			// Lookup for the source of the transaction
 			int idx = -1;
 			for (int i = pendingRequests.size() - 1; i >= 0; i--) {
-				if (pendingRequests.get(i).getKey().equals(t)) {
+				if (pendingRequests.get(i).getKey().equals(transaction)) {
 					idx = i;
 					break;
 				}
 			}
 			if (idx == -1) {
 				System.err.printf("%sServer %d request %s was lost %n",
-					InstanceManager.getLeader(message.getInstance(), round).equals(this)? "[L] ": "", this.getID(), block);
-				return;
+					InstanceManager.getLeader(message.getInstance(), round).equals(this)? "[L] ": "", this.getID(), transaction);
+				continue;
 			}
+
+			// Perform transaction (in a whole)
+			switch (transaction.getOperation()) {
+				case CREATE_ACCOUNT:
+					TESAccount newAccount = new TESAccount(transaction.getSource());
+					tesState.addAccount(newAccount);	// this maybe in another class
+					break;
+				case TRANSFER:
+					TransferTransaction transferTransaction = (TransferTransaction) transaction;
+					TESAccount sourceAccount = tesState.getAccount(transferTransaction.getSource());
+					TESAccount destinationAccount = tesState.getAccount(transferTransaction.getDestination());
+					// FIXME : add balances are protected (maybe this in another class)
+			
+				default:
+					System.err.printf("%sServer %d request %s not recognized %n",
+						InstanceManager.getLeader(message.getInstance(), round).equals(this)? "[L] ": "", this.getID(), transaction);
+					continue;
+			}
+			
+			// Sending response to the client
 			HDLProcess client = pendingRequests.remove(idx).getValue();
 			System.out.printf("%sServer %d deciding for client %s with proposed value %s at instance %d %n",
-			InstanceManager.getLeader(message.getInstance(), round).equals(this)? "[L] ": "", this.getID(), client, block, message.getInstance());
+				InstanceManager.getLeader(message.getInstance(), round).equals(this)? "[L] ": "", this.getID(), client, block, message.getInstance());
 
 			ClientResponseMessage response = new ClientResponseMessage(ClientResponseMessage.Status.OK, message.getInstance());
 			LinkMessage toSend = new LinkMessage(response, this, client);

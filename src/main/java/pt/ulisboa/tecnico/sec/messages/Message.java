@@ -90,8 +90,8 @@ public abstract class Message {
     public void setMessageMAC(SecretKey key) throws IllegalStateException {
 
         try {
-            mac = AuthenticationHandler.getMessageMAC(key, this);
-        } catch (IllegalStateException ise) {
+            mac = AuthenticationHandler.getMessageMAC(key, this.getDataBytes());
+        } catch (IllegalStateException | IOException e) {
             throw new IllegalStateException(String.format("[ERROR] Setting MAC for message %s with %s", this, key));
         }
     }
@@ -99,8 +99,8 @@ public abstract class Message {
     public boolean hasValidMAC(SecretKey key) {
         boolean valid = false;
         try {
-            valid = AuthenticationHandler.checkMAC(key, this);
-        } catch (IllegalStateException ise) {
+            valid = AuthenticationHandler.checkMAC(key, this.getMAC(), this.getDataBytes());
+        } catch (IllegalStateException | IOException e) {
             throw new IllegalStateException(String.format("[ERROR] Verifying MAC of message %s with %s", this, key));
         }
         return valid;
@@ -109,8 +109,8 @@ public abstract class Message {
     public void signMessage(PrivateKey key) throws IllegalStateException {
 
         try {
-            signature = AuthenticationHandler.getMessageSignature(key, this);
-        } catch (IllegalStateException ise) {
+            signature = AuthenticationHandler.signBytes(key, this.getDataBytes());
+        } catch (IllegalStateException | IOException e) {
             throw new IllegalStateException(String.format("[ERROR] Signing message %s with %s", this, key));
         }
     }
@@ -118,8 +118,8 @@ public abstract class Message {
     public boolean hasValidSignature(PublicKey key) throws IllegalStateException {
         boolean valid = false;
         try {
-            valid = AuthenticationHandler.checkSignature(key, this);
-        } catch (IllegalStateException ise) {
+            valid = AuthenticationHandler.checkSignature(key, this.getSignature(), this.getDataBytes());
+        } catch (IllegalStateException | IOException e) {
             throw new IllegalStateException(String.format("[ERROR] Verifying signature of message %s with %s", this, key));
         }
         return valid;

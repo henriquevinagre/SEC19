@@ -9,7 +9,8 @@ import java.security.PublicKey;
 import java.util.ArrayList;
 import java.util.List;
 
-import pt.ulisboa.tecnico.sec.tes.Transaction;
+import pt.ulisboa.tecnico.sec.tes.transactions.Transaction;
+import pt.ulisboa.tecnico.sec.tes.transactions.TransferTransaction;
 
 public class BlockchainNode {
     public static final int NODE_SIZE = 2;
@@ -35,12 +36,14 @@ public class BlockchainNode {
         return rewards;
     }
 
-    public void addTransaction(Transaction t, PublicKey producerKey) {
-        if (transactions.size() == NODE_SIZE) throw new IllegalStateException("Node is full, cannot add more transactions!");
-        transactions.add(t);
+    public void addTransaction(Transaction transaction, PublicKey producerKey) throws IllegalStateException {
+        if (transactions.size() >= NODE_SIZE) 
+            throw new IllegalStateException("Node is full, cannot add more transactions!");
+        
+        transactions.add(transaction);
 
         // no need to sign these transactions, get scammed lmao
-        rewards.add(Transaction.transferTransaction(t.getClientKey(), producerKey, TRANSACTION_FEE));
+        rewards.add(new TransferTransaction(transaction.getSource(), producerKey, TRANSACTION_FEE));
     }
 
     public boolean isFull() {

@@ -1,4 +1,4 @@
-1
+0
 # ^ (F) byzantine servers to be supported
 
 # Clients
@@ -17,6 +17,7 @@ C So much to do, so much to see
 C So what's wrong with taking the backstreets?
 C You'll never know if you don't go
 C You'll never shine if you don't glow
+C hehe!
 
 # (N) Servers
 S 8000
