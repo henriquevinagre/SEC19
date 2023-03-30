@@ -142,7 +142,7 @@ public class Server extends HDLProcess {
 		this.selfTerminate();
 		channel.close();
 
-		System.out.println(tesState);
+		System.out.printf("Server %d %s%n", this.getID(), tesState);
 
 		System.out.printf("Server %d closed%n", this.getID());
 	}

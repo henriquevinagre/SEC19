@@ -57,6 +57,6 @@ public class TESState {
 
     @Override
     public String toString() {
-        return "TES\t-> " + String.join("\n\t-> ", _accounts.stream().map((acc) -> acc.toString()).toArray(CharSequence[]::new));
+        return "TES\n\t-> " + String.join("\n\t-> ", _accounts.stream().map((acc) -> acc.toString()).toArray(CharSequence[]::new));
     }
 }
