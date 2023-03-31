@@ -1,54 +1,74 @@
 package pt.ulisboa.tecnico.sec.instances;
 
 import java.net.UnknownHostException;
-import java.security.KeyPair;
+import java.util.ArrayList;
+import java.util.List;
 
-import pt.ulisboa.tecnico.sec.crypto.KeyHandler;
 import pt.ulisboa.tecnico.sec.ibft.HDLProcess;
+import pt.ulisboa.tecnico.sec.instances.commands.Command;
 import pt.ulisboa.tecnico.sec.messages.ClientResponseMessage;
 import pt.ulisboa.tecnico.sec.tes.TESClientAPI;
 
 public class Client {
-	private String message;
+
+	private List<Command> commands;
 	private int id;
 	private TESClientAPI api;
 
-	private ClientResponseMessage response;
+	// for test purposes
+	private List<ClientResponseMessage> responses;
 
-	public Client(int id, String message) throws UnknownHostException {
-		this.message = message;
+	public Client(int id) throws UnknownHostException {
 		this.id = id;
 		api = new TESClientAPI(id);
+		commands = new ArrayList<>();
+		responses = new ArrayList<>();
 	}
 
-    public String getMessage() {
-        return message;
+	public Client(int id, List<Command> commands) throws UnknownHostException {
+		this(id);
+		this.commands = commands;
+	}
+
+	public int getID() {
+		return id;
+	}
+
+	public void addCommand(Command command) {
+		this.commands.add(command);
+	}
+
+    public List<Command> getCommands() {
+        return commands;
     }
 
 	public HDLProcess getHDLInstance() {
 		return api;
 	}
 
-	public ClientResponseMessage getResponse() {
-		return response;
+	public List<ClientResponseMessage> getResponse() {
+		return responses;
 	}
 
 	public void execute() {
 
-		KeyPair accountPair = KeyHandler.generateAccountKeyPair();
+		for (Command command: commands) {
+			ClientResponseMessage response = null;
 
-		try {
-			System.out.printf("Client %d: Sending request to append the message '%s' on blockchain...%n", this.id, this.message);
+			try {
+				response = command.applyCommand();
+			} catch (IllegalStateException | InterruptedException e) {
+				System.err.println("[ERROR] Client %d: Something was wrong executing " + command);
+				continue;
+			}
 
-			response = api.createAccount(accountPair.getPublic(), accountPair.getPrivate());
-			System.out.printf("Client %d: Request for message '" + this.message + "' completed with status %s %s%n", this.id, response.getStatus(),
-				((response.getTimestamp() != null)? "at block " + response.getTimestamp() : ""));
-			// api.transfer(accountPair.getPublic(), InstanceManager.getLeader(0, 0).getPublicKey(), 99f, accountPair.getPrivate());
-		} catch (IllegalStateException | InterruptedException e) {
-			System.out.printf("Client %d: Request did not perform well. Try again!", this.id);
-		} finally {
-			api.shutdown();
-			System.out.printf("Client %d: API closed%n", this.id);
+			assert(response != null);
+
+			System.out.printf("Client %d: Request for transaction '%s' completed with status '%s' on timestamp '%s'%n", this.id, command, response.getStatus(), response.getTimestamp());
+			responses.add(response);
 		}
+
+		api.shutdown();
+		System.out.printf("Client %d: API closed%n", this.id);
 	}
 }

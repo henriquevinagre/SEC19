@@ -2,10 +2,6 @@ package pt.ulisboa.tecnico.sec.tes;
 
 import java.util.List;
 
-import pt.ulisboa.tecnico.sec.tes.transactions.Transaction;
-import pt.ulisboa.tecnico.sec.tes.transactions.TransferTransaction;
-import pt.ulisboa.tecnico.sec.tes.transactions.Transaction.TESOperation;
-
 import java.security.PublicKey;
 import java.util.ArrayList;
 

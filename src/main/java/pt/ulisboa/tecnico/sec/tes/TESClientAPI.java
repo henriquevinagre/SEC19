@@ -18,9 +18,11 @@ import pt.ulisboa.tecnico.sec.messages.ClientRequestMessage;
 import pt.ulisboa.tecnico.sec.messages.ClientResponseMessage;
 import pt.ulisboa.tecnico.sec.messages.LinkMessage;
 import pt.ulisboa.tecnico.sec.messages.Message;
+import pt.ulisboa.tecnico.sec.tes.transactions.CheckBalanceTransaction;
 import pt.ulisboa.tecnico.sec.tes.transactions.CreateAccountTransaction;
 import pt.ulisboa.tecnico.sec.tes.transactions.Transaction;
 import pt.ulisboa.tecnico.sec.tes.transactions.TransferTransaction;
+import pt.ulisboa.tecnico.sec.tes.transactions.Transaction.TESOperation;
 
 public class TESClientAPI extends HDLProcess {
 
@@ -33,9 +35,9 @@ public class TESClientAPI extends HDLProcess {
         nonce = 0;
     }
 
-    public ClientResponseMessage createAccount(PublicKey clientKey, PrivateKey privKey) throws IllegalStateException, InterruptedException {
-        Transaction t = new CreateAccountTransaction(clientKey);
-        t.authenticateTransaction(nonce++, privKey);
+    public ClientResponseMessage createAccount(PublicKey source, PrivateKey sourceAuthKey) throws IllegalStateException, InterruptedException {
+        Transaction t = new CreateAccountTransaction(source);
+        t.authenticateTransaction(nonce++, sourceAuthKey);
         return this.appendTransaction(t);
     }
 
@@ -43,6 +45,13 @@ public class TESClientAPI extends HDLProcess {
         Transaction t = new TransferTransaction(source, destination, amount);
         t.authenticateTransaction(nonce++, sourceAuthKey);
         return this.appendTransaction(t);
+    }
+
+    // FIXME: v
+    public ClientResponseMessage checkBalance(PublicKey source, PublicKey owner, PrivateKey sourceAuthKey) throws IllegalStateException, InterruptedException {
+        Transaction t = new CheckBalanceTransaction(source, owner);
+        t.authenticateTransaction(nonce++, sourceAuthKey);  // FIXME: checkbalance transaction must not be in the blockchain's blocks
+        return new ClientResponseMessage(ClientResponseMessage.Status.REJECTED, -1);
     }
 
     private ClientResponseMessage appendTransaction(Transaction transaction) throws IllegalStateException, InterruptedException {

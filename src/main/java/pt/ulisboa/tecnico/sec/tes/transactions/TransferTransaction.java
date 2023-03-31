@@ -5,7 +5,6 @@ import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
 import java.security.PublicKey;
-import java.util.Base64;
 
 import pt.ulisboa.tecnico.sec.crypto.KeyHandler;
 import pt.ulisboa.tecnico.sec.tes.TESAccount;
@@ -13,24 +12,27 @@ import pt.ulisboa.tecnico.sec.tes.TESState;
 
 public class TransferTransaction extends Transaction {
 
-    private PublicKey _destination;
-    private double _amount;
+    private PublicKey destination;
+    private double amount;
 
     public TransferTransaction(PublicKey source, PublicKey destination, double amount) {
         super(TESOperation.TRANSFER, source);
-        _destination = destination;
-        _amount = amount;
+        this.destination = destination;
+        this.amount = amount;
     }
 
     // In-progress transaction
-    private TransferTransaction() { super(TESOperation.TRANSFER); }
+    private TransferTransaction() {
+        super(TESOperation.TRANSFER);
+    }
 
-    private void setDestination(PublicKey key) { _destination = key; }
-    private void setAmount(double amount) { _amount = amount; }
+    private void setDestination(PublicKey key) { this.destination = key; }
+    private void setAmount(double amount) { this.amount = amount; }
 
-    public PublicKey getDestination() { return _destination; }
-    public String getDestinationB64() { return Base64.getEncoder().encodeToString(_destination.getEncoded()); }
-    public double getAmount() { return _amount; }
+    public PublicKey getDestination() { return destination; }
+    public String getDestinationBase64() { return KeyHandler.KeyBase64(destination); }
+    public String getDestinationBase64Readable() { return KeyHandler.KeyBase64Readable(destination); }
+    public double getAmount() { return amount; }
 
 
     public byte[] toByteArray() throws IOException {
@@ -46,7 +48,7 @@ public class TransferTransaction extends Transaction {
         dos.write(destinationBytes);
 
         // serialize amount
-        dos.writeDouble(_amount);
+        dos.writeDouble(amount);
 
         // serialize source key
         byte[] sourceBytes = super.getSource().getEncoded();
@@ -72,7 +74,6 @@ public class TransferTransaction extends Transaction {
 
         try {
             destination = KeyHandler.deserializePublicKey(destinationBytes);
-
         } catch (IllegalStateException ile) {
             throw new IllegalStateException("[ERROR] Deserializing transaction destination key");
         }
@@ -97,7 +98,7 @@ public class TransferTransaction extends Transaction {
         dos.write(destinationBytes);
 
         // serialize amount
-        dos.writeDouble(_amount);
+        dos.writeDouble(amount);
 
         // serialize source key
         byte[] sourceBytes = super.getSource().getEncoded();
@@ -111,18 +112,24 @@ public class TransferTransaction extends Transaction {
     }
 
     @Override
+    public boolean checkSyntax() {
+        return amount > 0 && amount < Double.MAX_VALUE && // Amount should be between 0 and DOUBLE_MAX
+            !getSource().equals(destination); // Can't transfer to ourself :)
+    }
+
+    @Override
     public boolean updateTESState(TESState state) {
         TESAccount sourceAccount = state.getAccount(this.getSource());
         if (sourceAccount == null) return false;
         TESAccount destinationAccount = state.getAccount(this.getDestination());
         if (destinationAccount == null) return false;
 
-        if (sourceAccount.getTucs() < _amount || _amount >= Double.MAX_VALUE - destinationAccount.getTucs()) {
+        if (sourceAccount.getTucs() < amount || amount >= Double.MAX_VALUE - destinationAccount.getTucs()) {
             return false;
         }
 
-        sourceAccount.subtractBalance(_amount);
-        destinationAccount.addBalance(_amount);
+        sourceAccount.subtractBalance(amount);
+        destinationAccount.addBalance(amount);
 
         return true;
     }
@@ -140,15 +147,15 @@ public class TransferTransaction extends Transaction {
     public int hashCode() {
         int result = super.hashCode();
 
-        result = 31 * result + _destination.hashCode();
-        result = 31 * result + (int) _amount;
+        result = 31 * result + destination.hashCode();
+        result = 31 * result + (int) amount;
         
         return result;
     }
 
     @Override
     public String toString() {
-        return String.format("{op: TRANSFER, source: %s, destination: %s, amount: %.2f}", 
-            this.getSourceB64().substring(46, 62), this.getDestinationB64().substring(46, 62), this.getAmount());
+        return String.format("{op: TRANSFER, source: %s, destination: %s, amount: %.4f}", 
+            getSourceBase64Readable(), getDestinationBase64Readable(), amount);
     }
 }

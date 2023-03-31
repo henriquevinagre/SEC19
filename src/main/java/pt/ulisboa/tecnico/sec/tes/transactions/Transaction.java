@@ -5,7 +5,6 @@ import java.io.DataInputStream;
 import java.io.IOException;
 import java.security.PrivateKey;
 import java.security.PublicKey;
-import java.util.Base64;
 
 import pt.ulisboa.tecnico.sec.crypto.AuthenticationHandler;
 import pt.ulisboa.tecnico.sec.crypto.KeyHandler;
@@ -17,7 +16,8 @@ public abstract class Transaction {
     // Operations available
     public enum TESOperation {
         CREATE_ACCOUNT,
-        TRANSFER
+        TRANSFER,
+        CHECK_BALANCE
     }
 
     private TESOperation _operation;
@@ -33,7 +33,8 @@ public abstract class Transaction {
     private void setChallenge(String challenge) { _challenge = challenge; }
 
     public PublicKey getSource() { return _source; }
-    public String getSourceB64() { return Base64.getEncoder().encodeToString(_source.getEncoded()); }
+    public String getSourceBase64() { return KeyHandler.KeyBase64(_source); }
+    public String getSourceBase64Readable() { return KeyHandler.KeyBase64Readable(_source); }
     public TESOperation getOperation() { return _operation; }
     protected int getNonce() { return _nonce; }
     protected String getChallenge() { return _challenge; }
@@ -41,23 +42,20 @@ public abstract class Transaction {
 
     // Only Transaction types can call this
     protected Transaction(TESOperation operation, PublicKey owner) {
-
         setOperation(operation);
         setSource(owner);
         setNonce(AuthenticationHandler.UNDEFINED);
-        setChallenge(AuthenticationHandler.UNDEFINED_CHALLENGE);
+        setChallenge(AuthenticationHandler.UNDEFINED_HASH);
     }
 
     // In-progress transaction (serialization purposes)
     protected Transaction(TESOperation operation) {
-        
         setOperation(operation);
         setNonce(AuthenticationHandler.UNDEFINED);
-        setChallenge(AuthenticationHandler.UNDEFINED_CHALLENGE);
+        setChallenge(AuthenticationHandler.UNDEFINED_HASH);
     }
 
     public abstract byte[] toByteArray() throws IOException;
-
 
     public static Transaction fromByteArray(byte[] bytes) throws IOException, IllegalStateException {
         ByteArrayInputStream bais = new ByteArrayInputStream(bytes);
@@ -72,6 +70,8 @@ public abstract class Transaction {
                 transaction = CreateAccountTransaction.fromDataInputStream(dis); break;
             case TRANSFER:
                 transaction = TransferTransaction.fromDataInputStream(dis); break;
+            case CHECK_BALANCE:
+                transaction = CheckBalanceTransaction.fromDataInputStream(dis); break;
             default:
                 throw new IllegalStateException("Unknown transaction operation: " + operation);
         }
@@ -116,6 +116,8 @@ public abstract class Transaction {
     }
 
     public abstract byte[] getDataBytes() throws IOException;
+
+    public abstract boolean checkSyntax();
 
     public abstract boolean updateTESState(TESState state);
 

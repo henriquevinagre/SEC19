@@ -16,7 +16,7 @@ public class AuthenticationHandler {
     // Macros for authentication purposes
     public static final Integer FAIL = -1;
     public static final Integer UNDEFINED = -2;
-    public static final String UNDEFINED_CHALLENGE = "\0";
+    public static final String UNDEFINED_HASH = "\0";
 
     private AuthenticationHandler() throws IllegalStateException {
         throw new IllegalStateException("Utility class");

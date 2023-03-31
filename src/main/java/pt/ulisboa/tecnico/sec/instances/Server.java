@@ -19,11 +19,8 @@ import pt.ulisboa.tecnico.sec.messages.BFTMessage;
 import pt.ulisboa.tecnico.sec.messages.ClientRequestMessage;
 import pt.ulisboa.tecnico.sec.messages.ClientResponseMessage;
 import pt.ulisboa.tecnico.sec.messages.LinkMessage;
-import pt.ulisboa.tecnico.sec.tes.TESAccount;
-import pt.ulisboa.tecnico.sec.tes.TESClientAPI;
 import pt.ulisboa.tecnico.sec.tes.TESState;
 import pt.ulisboa.tecnico.sec.tes.transactions.Transaction;
-import pt.ulisboa.tecnico.sec.tes.transactions.TransferTransaction;
 
 
 public class Server extends HDLProcess {
@@ -56,7 +53,7 @@ public class Server extends HDLProcess {
 		tesState = new TESState();
 	}
 
-	public TESState gTesState() {
+	public TESState getTESState() {
 		return tesState;
 	}
 
@@ -223,7 +220,7 @@ public class Server extends HDLProcess {
 		ClientRequestMessage requestMessage = (ClientRequestMessage) request.getMessage();
 		Transaction transaction = requestMessage.getTransaction();
 
-		if (!transaction.validateTransaction()) {
+		if (!transaction.validateTransaction() || !transaction.checkSyntax()) {
             sendClientResponse(request.getSender(), ClientResponseMessage.Status.REJECTED, -1);
 			return;
 		}

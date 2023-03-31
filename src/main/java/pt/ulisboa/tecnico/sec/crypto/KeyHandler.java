@@ -10,6 +10,7 @@ import java.nio.file.Path;
 import java.security.*;
 import java.security.spec.*;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.List;
 
 import javax.crypto.KeyGenerator;
@@ -23,10 +24,27 @@ public class KeyHandler {
     static final String PUBLIC_SUFFIX = ".pub.key";
     static final String SECRET_SUFFIX = ".key";
 
+    static final String ASSYM_ALGO = "RSA";
+    static final String SYM_ALGO = "AES";
+    static final String RANDOM_ALGO = "SHA1PRNG";
+
+    // Used for printing key in a readable way
+    static final int KEY_B64_BEGIN_INDEX = 46;
+    static final int KEY_B64_LENGTH = 16;
+    static final int KEY_B64_END_INDEX = KEY_B64_BEGIN_INDEX + KEY_B64_LENGTH;
+
     static final List<File> keysFiles = new ArrayList<File>();
 
     private KeyHandler() throws IllegalStateException {
         throw new IllegalStateException("Utility class");
+    }
+
+    public static String KeyBase64(Key key) {
+        return Base64.getEncoder().encodeToString(key.getEncoded());
+    }
+
+    public static String KeyBase64Readable(Key key) {
+        return KeyBase64(key).substring(KEY_B64_BEGIN_INDEX, KEY_B64_END_INDEX);
     }
 
     private static String getPrefix(int id) {
@@ -61,8 +79,8 @@ public class KeyHandler {
         KeyPair res = null;
         try {
             SecureRandom random;
-            KeyPairGenerator keyGen = KeyPairGenerator.getInstance("RSA");
-            random = SecureRandom.getInstance("SHA1PRNG");
+            KeyPairGenerator keyGen = KeyPairGenerator.getInstance(ASSYM_ALGO);
+            random = SecureRandom.getInstance(RANDOM_ALGO);
             keyGen.initialize(2048, random);
             res = keyGen.generateKeyPair();
         } catch (NoSuchAlgorithmException e) {
@@ -77,8 +95,8 @@ public class KeyHandler {
         }
         try {
             SecureRandom random;
-            KeyPairGenerator keyGen = KeyPairGenerator.getInstance("RSA");
-            random = SecureRandom.getInstance("SHA1PRNG");
+            KeyPairGenerator keyGen = KeyPairGenerator.getInstance(ASSYM_ALGO);
+            random = SecureRandom.getInstance(RANDOM_ALGO);
             keyGen.initialize(2048, random);
             KeyPair pair = keyGen.generateKeyPair();
             PrivateKey privateKey = pair.getPrivate();
@@ -106,8 +124,8 @@ public class KeyHandler {
         }
         try {
             SecureRandom random;
-            KeyGenerator keyGen = KeyGenerator.getInstance("AES");
-            random = SecureRandom.getInstance("SHA1PRNG");
+            KeyGenerator keyGen = KeyGenerator.getInstance(SYM_ALGO);
+            random = SecureRandom.getInstance(RANDOM_ALGO);
             keyGen.init(128, random);
             SecretKey key = keyGen.generateKey();
 
@@ -132,7 +150,7 @@ public class KeyHandler {
             fis.close();
 
             PKCS8EncodedKeySpec privateKeySpec = new PKCS8EncodedKeySpec(keyBytes);
-            key = KeyFactory.getInstance("RSA").generatePrivate(privateKeySpec);
+            key = KeyFactory.getInstance(ASSYM_ALGO).generatePrivate(privateKeySpec);
         }
         catch (NoSuchAlgorithmException | InvalidKeySpecException | IOException e) {
             e.printStackTrace();
@@ -152,7 +170,7 @@ public class KeyHandler {
             fis.close();
 
             X509EncodedKeySpec publicKeySpec = new X509EncodedKeySpec(keyBytes);
-            key = KeyFactory.getInstance("RSA").generatePublic(publicKeySpec);
+            key = KeyFactory.getInstance(ASSYM_ALGO).generatePublic(publicKeySpec);
         }
         catch (NoSuchAlgorithmException | InvalidKeySpecException | IOException e) {
             throw new IllegalStateException(String.format("[ERROR] Getting public key for process %d", id));
@@ -170,7 +188,7 @@ public class KeyHandler {
             byte[] keyBytes = fis.readAllBytes();
             fis.close();
 
-            key = new SecretKeySpec(keyBytes, 0, 16, "AES");
+            key = new SecretKeySpec(keyBytes, 0, 16, SYM_ALGO);
         } catch (IOException e) {
             throw new IllegalStateException(
                 String.format("[ERROR] Getting secret key for processes %d and %d", id1, id2));
@@ -189,7 +207,7 @@ public class KeyHandler {
     public static PublicKey deserializePublicKey(byte[] keyBytes) throws IllegalStateException {
         PublicKey pubKey = null;
         try {
-            pubKey = KeyFactory.getInstance("RSA").generatePublic(new X509EncodedKeySpec(keyBytes));
+            pubKey = KeyFactory.getInstance(ASSYM_ALGO).generatePublic(new X509EncodedKeySpec(keyBytes));
 
         } catch (InvalidKeySpecException | NoSuchAlgorithmException e) {
             throw new IllegalStateException();
@@ -200,7 +218,7 @@ public class KeyHandler {
     public static PrivateKey deserializePrivateKey(byte[] keyBytes) throws IllegalStateException {
         PrivateKey prvKey = null;
         try {
-            prvKey = KeyFactory.getInstance("RSA").generatePrivate(new X509EncodedKeySpec(keyBytes));
+            prvKey = KeyFactory.getInstance(ASSYM_ALGO).generatePrivate(new X509EncodedKeySpec(keyBytes));
 
         } catch (InvalidKeySpecException | NoSuchAlgorithmException e) {
             throw new IllegalStateException();
@@ -209,6 +227,6 @@ public class KeyHandler {
     }
 
     public static SecretKey deserializeSecretKey(byte[] keyBytes) throws IllegalStateException {
-        return new SecretKeySpec(keyBytes, 0, keyBytes.length, "AES");
+        return new SecretKeySpec(keyBytes, 0, keyBytes.length, SYM_ALGO);
     }
 }

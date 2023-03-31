@@ -2,6 +2,8 @@ package pt.ulisboa.tecnico.sec.tes;
 
 import java.security.PublicKey;
 
+import pt.ulisboa.tecnico.sec.crypto.KeyHandler;
+
 // Account of the TES
 public class TESAccount {
 
@@ -17,6 +19,14 @@ public class TESAccount {
 
     public PublicKey getID() {
         return _id;
+    }
+
+    public String getIDBase64() {
+        return KeyHandler.KeyBase64(_id);
+    }
+
+    public String getIDB64Readable() {
+        return KeyHandler.KeyBase64Readable(_id);
     }
 
     public double getTucs() {
@@ -37,7 +47,7 @@ public class TESAccount {
 
     @Override
     public String toString() {
-        return String.format("Account<" + this.getID().getEncoded() + ", %f>", this.getTucs());
+        return String.format("Account<" + this.getIDB64Readable() + ", %f>", this.getTucs());
     }
 
 }

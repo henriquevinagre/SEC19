@@ -1,36 +1,26 @@
 1
 # ^ (F) byzantine servers to be supported
 
-# Clients
-C Never Gonna
-C Give you up
-C Give you up
-C Give you up
-C Give you up
-C Give you up
-C Give you up
-C Give you up
-C Give you up
-C Give you up
-C Give you up
-C Give you up
-C Give you up
-C Give you up
-C Give you up
-C Give you up
-C Give you up
-C Give you up
-C Give you up
-C Give you up
-C Give you up
-C Give you up
-C Give you up
-C Give you up
-C Give you up
+## DOCS
+# creating client x -> C x
+# client x creates an account -> T C x
+# client x transfers t Tucs to account of client y -> T T x y t
+# client x checks the balance of client y account -> T B x y
+## END OF DOCS
+
 
 # (N) Servers
-S 8000
-S 8001
-S 8002
-S 8003
+S 1 8000
+S 2 8001
+S 3 8002
+S 4 8003
+
+# Clients
+C 5
+C 6
+T C 5
+T T 6 5 2
+T B 6 5
+T T 5 6 2
+T C 6
 

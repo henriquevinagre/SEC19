@@ -14,8 +14,12 @@ import java.util.Map;
 
 import pt.ulisboa.tecnico.sec.crypto.KeyHandler;
 import pt.ulisboa.tecnico.sec.ibft.HDLProcess;
+import pt.ulisboa.tecnico.sec.instances.commands.CreateAccountCommand;
+import pt.ulisboa.tecnico.sec.instances.commands.CheckBalanceCommand;
+import pt.ulisboa.tecnico.sec.instances.commands.TransferCommand;
+import pt.ulisboa.tecnico.sec.instances.commands.InvalidCommandException;
 import pt.ulisboa.tecnico.sec.tes.TESAccount;
-import pt.ulisboa.tecnico.sec.tes.TESClientAPI;
+import pt.ulisboa.tecnico.sec.utils.Logger;
 
 public class InstanceManager {
 
@@ -105,22 +109,9 @@ public class InstanceManager {
             serverThreads.put(server, t);
         }
 
-        // Map<Server, Thread> createAccountThreads = new HashMap<>();
-        // for (Server server : _servers) {
-        //     Thread t = new Thread(() -> {
-        //         try {
-        //             server.submitCreateAccountTransaction();
-        //         } catch (UnknownHostException | IllegalStateException | InterruptedException e) {
-        //             e.printStackTrace();
-        //         }
-        //     });
-        //     t.start();
-        //     createAccountThreads.put(server, t);
-        // }
-
         for (Server s1 : _servers) {
             for (Server s2 : _servers) {
-                s1.gTesState().addAccount(new TESAccount(s2.getPublicKey()));
+                s1.getTESState().addAccount(new TESAccount(s2.getPublicKey()));
             }
         }
 
@@ -157,22 +148,22 @@ public class InstanceManager {
         for (Server server : serverThreads.keySet()) {
             Thread thread = serverThreads.get(server);
             try {
-                System.err.printf("S (%s) - %s awaiting...%n", server, thread.getName());
+                Logger.Logln(String.format("S (%s) - %s awaiting...", server, thread.getName()));
                 thread.join();
                 System.err.printf("S (%s) - %s finished...%n", server, thread.getName());
             } catch (InterruptedException e) {
                 System.err.printf("S (%s) - %s interrupted...%n", server, thread.getName());
             }
         }
-        System.out.printf("Servers down!%n");
+        Logger.Logln("Servers down!", System.out);
 
         KeyHandler.cleanKeys();
 
         for (Server server : _servers) {
-            System.out.printf("Blockchain State in server " + server.getID() + ": %s%n", server.getBlockChainState());
+            Logger.Logln("Blockchain State in server " + server.getID() + ": " + server.getBlockChainState(), System.out);
         }
 
-        System.out.printf("Done!%n");
+        Logger.Logln("Done!");
     }
 
     // Each line of the config file should be either (assuming all run in localhost IP):
@@ -182,7 +173,7 @@ public class InstanceManager {
         // #[COMMENT]
     public static void main(String[] args) throws IOException, IllegalStateException {
         if (!List.of(1, 2).contains(args.length) || (args.length == 2 && !args[1].equals("-debug"))) {
-			System.out.printf("Argument(s) missing!%n");
+			Logger.Logln("Argument(s) missing!", System.out);
 			System.out.printf("Usage: java %s config_file [-debug]%n", InstanceManager.class.getName());
 			return;
 		}
@@ -194,7 +185,7 @@ public class InstanceManager {
             System.setErr(nullPrintStream);
         }
 
-        int id = 0, f;
+        int f;
         List<Server> servers = new ArrayList<>();
         List<Client> clients = new ArrayList<>();
 
@@ -205,17 +196,29 @@ public class InstanceManager {
 
             while ((line = br.readLine()) != null) {
                 if (!line.isEmpty()) {
-                    switch (line.charAt(0)) {
-                        case 'C':
-                            clients.add(new Client(id, line.substring(2)));
-                            break;
-                        case 'S':
-                            servers.add(new Server(id, Integer.parseInt(line.substring(2))));
-                            break;
-                        default:
-                            continue;
+                    try {
+                        switch (line.charAt(0)) {
+                            case '#':   // commentary
+                                break;
+                            case 'C':   // create client > C <id>
+                                addClient(clients, line);
+                                break;
+                            case 'S':   // create server > S <id> <port>
+                                addServer(servers, line);
+                                break;
+                            case 'T':   // create command > T <type> <sender> [other] [amount]
+                                addTransaction(clients, line);
+                                break;
+                            default:
+                                Logger.Logln("Unknown command on line + '" + line + "'");
+                                break;
+                        }
+                    } catch (InvalidCommandException e) {
+                        Logger.Log("Ignoring line '" + line + "', as it gave following exception:", System.out);
+                    } catch (Exception e) {
+                        Logger.Log(e, System.out);
+                        e.printStackTrace();
                     }
-                    id++;
                 }
             }
         }
@@ -224,5 +227,114 @@ public class InstanceManager {
 
         runSystem();
         System.exit(0);
+    }
+
+    private static boolean checkLineFormat(String line, String pattern) {
+        String regex = String.format("^%s$", pattern);
+        return line.matches(regex);
+    }
+
+    private static void addClient(List<Client> clients, String line) throws NumberFormatException, UnknownHostException, InvalidCommandException {
+        if (!checkLineFormat(line, "C [0-9]+")) {
+            throw new InvalidCommandException(line, "Add Client");
+        }
+
+        String[] args = line.split(" ");
+        int id = Integer.valueOf(args[1]);
+        clients.add(new Client(id));
+    }
+
+    private static void addServer(List<Server> servers, String line) throws NumberFormatException, UnknownHostException, InvalidCommandException {
+        if (!checkLineFormat(line, "S [0-9]+ [0-9]{4}")) {
+            throw new InvalidCommandException(line, "Add Server");
+        }
+
+        String[] args = line.split(" ");
+        int id = Integer.valueOf(args[1]);
+        int port = Integer.valueOf(args[2]);
+        if (port < 1024) throw new NumberFormatException("Port must be above 1023.");
+
+        servers.add(new Server(id, port));
+    }
+
+    private static void addCreateAccountTransaction(List<Client> clients, String line) throws NumberFormatException, InvalidCommandException {
+        if (!checkLineFormat(line, "T C [0-9]+")) {
+            throw new InvalidCommandException(line, "Create Account Transaction");
+        }
+        
+        String[] args = line.split(" ");
+        int id = Integer.valueOf(args[2]);
+
+        for (Client client : clients) {
+            if (client.getID() == id) {
+                client.addCommand(new CreateAccountCommand(client));
+                return;
+            }
+        }
+
+        throw new InvalidCommandException("No client with id '" + id + "'");
+    }
+    
+    private static void addTransferTransaction(List<Client> clients, String line) throws NumberFormatException, InvalidCommandException {
+        if (!checkLineFormat(line, "T T [0-9]+ [0-9]+ [0-9]+")) {
+            throw new InvalidCommandException(line, "Transfer Transaction");
+        }
+        
+        String[] args = line.split(" ");
+        int senderID = Integer.valueOf(args[2]);
+        int receiverID = Integer.valueOf(args[3]);
+        double amount = Double.valueOf(args[4]);
+
+        Client sender = clients.stream().filter((c) -> c.getID() == senderID).findAny().orElse(null);
+        Client receiver = clients.stream().filter((c) -> c.getID() == receiverID).findAny().orElse(null);
+        
+        if (sender == null) {
+            throw new InvalidCommandException("Sender has id '" + senderID + "', but no client with that id exists!");
+        } else if (receiver == null) {
+            throw new InvalidCommandException("Receiver has id '" + receiverID + "', but no client with that id exists!");
+        }
+
+        sender.addCommand(new TransferCommand(sender, receiver, amount));
+    }
+
+    private static void addCheckBalanceTransaction(List<Client> clients, String line) throws NumberFormatException, InvalidCommandException {
+        if (!checkLineFormat(line, "T B [0-9]+ [0-9]+")) {
+            throw new InvalidCommandException(line, "Check Balance Transaction");
+        }
+
+        String[] args = line.split(" ");
+        int senderID = Integer.valueOf(args[2]);
+        int ownerID = Integer.valueOf(args[3]);
+
+        Client sender = clients.stream().filter((c) -> c.getID() == senderID).findAny().orElse(null);
+        Client owner = clients.stream().filter((c) -> c.getID() == ownerID).findAny().orElse(null);
+        
+        if (sender == null) {
+            throw new InvalidCommandException("Sender has id '" + senderID + "', but no client with that id exists!");
+        } else if (owner == null) {
+            throw new InvalidCommandException("Owner has id '" + ownerID + "', but no client with that id exists!");
+        }
+
+        sender.addCommand(new CheckBalanceCommand(sender, owner));
+    }
+
+    private static void addTransaction(List<Client> clients, String line) throws NumberFormatException, InvalidCommandException {
+        if (!checkLineFormat(line, "T [CTB] [0-9]+( [0-9]+){0,2}")) {
+            throw new InvalidCommandException(line, "Add Transaction");
+        }
+
+        switch (line.split(" ")[1]) {
+            case "C":
+                addCreateAccountTransaction(clients, line);
+                break;
+            case "T":
+                addTransferTransaction(clients, line);
+                break;
+            case "B":
+                addCheckBalanceTransaction(clients, line);
+                break;
+            default:
+                throw new InvalidCommandException(line, "WTF how did we get here???");
+        }
     }
 }
