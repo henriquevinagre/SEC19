@@ -353,6 +353,10 @@ public class Server extends HDLProcess {
 
 		for (Transaction t : block.getRewards()) {
 			t.updateTESState(tesState);
+			// FIXME: maybe just add balance to leader's account?
+			// tesState.getAccount(getPublicKey()).addBalance(BlockchainNode.TRANSACTION_FEE);
+			// TESAccount source = tesState.getAccount(t.getSource());
+			// if (source != null) source.subtractBalance(BlockchainNode.TRANSACTION_FEE);
 		}
 
 		blockchainState.append(message.getInstance(), block);

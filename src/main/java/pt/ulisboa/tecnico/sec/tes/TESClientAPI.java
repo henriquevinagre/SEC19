@@ -14,6 +14,7 @@ import pt.ulisboa.tecnico.sec.broadcasts.BestEffortBroadcast;
 import pt.ulisboa.tecnico.sec.ibft.HDLProcess;
 import pt.ulisboa.tecnico.sec.instances.InstanceManager;
 import pt.ulisboa.tecnico.sec.links.AuthenticatedPerfectLink;
+import pt.ulisboa.tecnico.sec.messages.CheckBalanceResponseMessage;
 import pt.ulisboa.tecnico.sec.messages.ClientRequestMessage;
 import pt.ulisboa.tecnico.sec.messages.ClientResponseMessage;
 import pt.ulisboa.tecnico.sec.messages.LinkMessage;
@@ -43,15 +44,15 @@ public class TESClientAPI extends HDLProcess {
 
     public ClientResponseMessage transfer(PublicKey source, PublicKey destination, double amount, PrivateKey sourceAuthKey) throws IllegalStateException, InterruptedException {
         Transaction t = new TransferTransaction(source, destination, amount);
-        t.authenticateTransaction(nonce++, sourceAuthKey);
+        t.authenticateTransaction(nonce++, sourceAuthKey);  // FIXME: nonces
         return this.appendTransaction(t);
     }
 
-    // FIXME: v
+    // TODO: Gotta implement reads!
     public ClientResponseMessage checkBalance(PublicKey source, PublicKey owner, PrivateKey sourceAuthKey) throws IllegalStateException, InterruptedException {
         Transaction t = new CheckBalanceTransaction(source, owner);
         t.authenticateTransaction(nonce++, sourceAuthKey);  // FIXME: checkbalance transaction must not be in the blockchain's blocks
-        return new ClientResponseMessage(ClientResponseMessage.Status.REJECTED, -1);
+        return new CheckBalanceResponseMessage(ClientResponseMessage.Status.REJECTED, -1, Double.MAX_VALUE); // money !!!!!
     }
 
     private ClientResponseMessage appendTransaction(Transaction transaction) throws IllegalStateException, InterruptedException {

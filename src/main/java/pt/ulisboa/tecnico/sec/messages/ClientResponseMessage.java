@@ -34,13 +34,22 @@ public class ClientResponseMessage extends Message {
         return timestamp;
     }
 
-    public byte[] toByteArray() throws IOException {
+    public byte[] getDataBytes() throws IOException {
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         DataOutputStream dos = new DataOutputStream(baos);
 
         dos.writeInt(Message.MessageType.CLIENT_RESPONSE.ordinal());
         dos.writeInt(status.ordinal());
         dos.writeInt(timestamp);
+
+        return baos.toByteArray();
+    }
+
+    public byte[] toByteArray() throws IOException {
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        DataOutputStream dos = new DataOutputStream(baos);
+
+        dos.write(this.getDataBytes());
         dos.writeUTF(super.mac);
         dos.writeUTF(super.signature);
 
@@ -53,17 +62,6 @@ public class ClientResponseMessage extends Message {
         this.timestamp = dis.readInt();
 
         return this;
-    }
-
-    public byte[] getDataBytes() throws IOException {
-        ByteArrayOutputStream baos = new ByteArrayOutputStream();
-        DataOutputStream dos = new DataOutputStream(baos);
-
-        dos.writeInt(Message.MessageType.CLIENT_RESPONSE.ordinal());
-        dos.writeInt(status.ordinal());
-        dos.writeInt(timestamp);
-
-        return baos.toByteArray();
     }
 
     @Override
