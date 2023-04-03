@@ -1,6 +1,5 @@
 package pt.ulisboa.tecnico.sec.ibft;
 
-import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
@@ -12,7 +11,7 @@ import java.util.List;
 import pt.ulisboa.tecnico.sec.tes.transactions.Transaction;
 import pt.ulisboa.tecnico.sec.tes.transactions.TransferTransaction;
 
-public class BlockchainNode {
+public class BlockchainNode implements IBFTValueIT {
     public static final int FILL_TIMEOUT = 2000; // ms
     public static final int NODE_SIZE = 2;
     public static final int TRANSACTION_FEE = 1; // every transaction must pay 1 coin to the block producer
@@ -55,6 +54,7 @@ public class BlockchainNode {
         return transactions.isEmpty();
     }
 
+    @Override
     public byte[] toByteArray() throws IOException {
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         DataOutputStream dos = new DataOutputStream(baos);
@@ -80,16 +80,18 @@ public class BlockchainNode {
         return baos.toByteArray();
     }
 
-    public static BlockchainNode fromDataInputStream(DataInputStream dis) throws IOException {
-        List<Transaction> transactions = new ArrayList<>();
-        List<Transaction> rewards = new ArrayList<>();
+    @SuppressWarnings("unchecked")
+    @Override
+    public BlockchainNode fromDataInputStream(DataInputStream dis) throws IOException {
+        this.transactions = new ArrayList<>();
+        this.rewards = new ArrayList<>();
 
         int lenght = dis.readInt();
         byte[] bytes = null;
 
         while (lenght != 0) {
             bytes = dis.readNBytes(lenght);
-            transactions.add(Transaction.fromByteArray(bytes));
+            this.transactions.add(Transaction.fromByteArray(bytes));
             lenght = dis.readInt();
         }
 
@@ -97,19 +99,19 @@ public class BlockchainNode {
 
         while (lenght != 0) {
             bytes = dis.readNBytes(lenght);
-            rewards.add(Transaction.fromByteArray(bytes));
+            this.rewards.add(Transaction.fromByteArray(bytes));
             lenght = dis.readInt();
         }
 
-        return new BlockchainNode(transactions, rewards);
+        return this;
     }
 
-    public static BlockchainNode fromByteArray(byte[] bytes) throws IOException {
-        ByteArrayInputStream bais = new ByteArrayInputStream(bytes);
-        DataInputStream dis = new DataInputStream(bais);
+    // public static BlockchainNode fromByteArray(byte[] bytes) throws IOException {
+    //     ByteArrayInputStream bais = new ByteArrayInputStream(bytes);
+    //     DataInputStream dis = new DataInputStream(bais);
 
-        return BlockchainNode.fromDataInputStream(dis);
-    }
+    //     return BlockchainNode.fromDataInputStream(dis);
+    // }
 
     @Override
     public boolean equals(Object obj) {

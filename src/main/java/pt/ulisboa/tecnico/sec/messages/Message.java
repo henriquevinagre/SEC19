@@ -9,6 +9,7 @@ import java.security.PublicKey;
 import javax.crypto.SecretKey;
 
 import pt.ulisboa.tecnico.sec.crypto.AuthenticationHandler;
+import pt.ulisboa.tecnico.sec.ibft.BlockchainNode;
 
 public abstract class Message {
     
@@ -26,6 +27,10 @@ public abstract class Message {
     // Authentication hashes of the message
     protected String mac = HASH_NONE;
     protected String signature = HASH_NONE;
+
+    protected Message(MessageType msgType) {
+        this.msgType = msgType;
+    }
 
     public MessageType getMessageType() {
         return msgType;
@@ -48,6 +53,7 @@ public abstract class Message {
     }
 
     public abstract byte[] toByteArray() throws IOException;
+    public abstract Message fromDataInputStream(DataInputStream dis) throws IOException; 
 
 
     public static Message fromByteArray(byte[] bytes) throws IOException {
@@ -59,20 +65,16 @@ public abstract class Message {
         Message message;
         switch (messageType) {
             case BFT:
-                message = BFTMessage.fromDataInputStream(dis);
-                message.msgType = MessageType.BFT;
+                message = new BFTMessage<BlockchainNode>(BlockchainNode.class).fromDataInputStream(dis);
                 break;
             case CLIENT_REQUEST:
-                message = ClientRequestMessage.fromDataInputStream(dis);
-                message.msgType = MessageType.CLIENT_REQUEST;
+                message = new ClientRequestMessage().fromDataInputStream(dis);
                 break;
             case CLIENT_RESPONSE:
-                message = ClientResponseMessage.fromDataInputStream(dis);
-                message.msgType = MessageType.CLIENT_RESPONSE;
+                message = new ClientResponseMessage().fromDataInputStream(dis);
                 break;
             case ACK:
-                message = ACKMessage.fromDataInputStream(dis);
-                message.msgType = MessageType.ACK;
+                message = new ACKMessage().fromDataInputStream(dis);
                 break;
             default:
                 throw new IllegalArgumentException("Unknown message type: " + messageType);

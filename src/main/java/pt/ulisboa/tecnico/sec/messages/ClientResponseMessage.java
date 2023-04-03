@@ -16,17 +16,22 @@ public class ClientResponseMessage extends Message {
     private Status status;
     private Integer timestamp;
 
+    public ClientResponseMessage() {
+        super(MessageType.CLIENT_RESPONSE);
+    }
+
+    public ClientResponseMessage(Status status, Integer timestamp) {
+        super(MessageType.CLIENT_RESPONSE);
+        this.status = status;
+        this.timestamp = timestamp;
+    }
+
     public Status getStatus() {
         return this.status;
     }
 
     public Integer getTimestamp() {
         return timestamp;
-    }
-
-    public ClientResponseMessage(Status status, Integer timestamp) {
-        this.status = status;
-        this.timestamp = timestamp;
     }
 
     public byte[] toByteArray() throws IOException {
@@ -42,11 +47,12 @@ public class ClientResponseMessage extends Message {
         return baos.toByteArray();
     }
 
-    public static ClientResponseMessage fromDataInputStream(DataInputStream dis) throws IOException {
-        Status status = Status.values()[dis.readInt()];
-        int timestamp = dis.readInt();
+    @Override
+    public ClientResponseMessage fromDataInputStream(DataInputStream dis) throws IOException {
+        this.status = Status.values()[dis.readInt()];
+        this.timestamp = dis.readInt();
 
-        return new ClientResponseMessage(status, timestamp);
+        return this;
     }
 
     public byte[] getDataBytes() throws IOException {

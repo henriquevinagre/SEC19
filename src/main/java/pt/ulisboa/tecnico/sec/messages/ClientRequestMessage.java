@@ -11,14 +11,20 @@ public class ClientRequestMessage extends Message {
 
     private Transaction transaction;
 
+    public ClientRequestMessage() {
+        super(MessageType.CLIENT_REQUEST);
+    }
+
+    public ClientRequestMessage(Transaction transaction) {
+        super(MessageType.CLIENT_REQUEST);
+        this.transaction = transaction;
+    }
+
     public Transaction getTransaction() {
         return transaction;
     }
 
-    public ClientRequestMessage(Transaction transaction) {
-        this.transaction = transaction;
-    }
-
+    @Override
     public byte[] toByteArray() throws IOException {
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         DataOutputStream dos = new DataOutputStream(baos);
@@ -34,11 +40,13 @@ public class ClientRequestMessage extends Message {
         return baos.toByteArray();
     }
 
-    public static ClientRequestMessage fromDataInputStream(DataInputStream dis) throws IOException {
+    @Override
+    public ClientRequestMessage fromDataInputStream(DataInputStream dis) throws IOException {
         byte[] transactionBytes = new byte[dis.readInt()];
         dis.readFully(transactionBytes);
+        this.transaction = Transaction.fromByteArray(transactionBytes);
 
-        return new ClientRequestMessage(Transaction.fromByteArray(transactionBytes));
+        return this;
     }
 
     public byte[] getDataBytes() throws IOException {

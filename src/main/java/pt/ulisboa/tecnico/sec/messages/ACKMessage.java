@@ -7,13 +7,18 @@ import java.io.IOException;
 
 public class ACKMessage extends Message {
 
-    private final int referId;
+    private int referId;
 
     public int getReferId() {
         return referId;
     }
 
+    public ACKMessage() {
+        super(MessageType.ACK);
+    }
+
     public ACKMessage(int referId) {
+        super(MessageType.ACK);
         this.referId = referId;
     }
 
@@ -31,10 +36,10 @@ public class ACKMessage extends Message {
         return baos.toByteArray();
     }
 
-    public static ACKMessage fromDataInputStream(DataInputStream dis) throws IOException {
-        int referId = dis.readInt();
+    public ACKMessage fromDataInputStream(DataInputStream dis) throws IOException {
+        this.referId = dis.readInt();
 
-        return new ACKMessage(referId);
+        return this;
     }
 
     public byte[] getDataBytes() throws IOException {

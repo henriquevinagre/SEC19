@@ -38,8 +38,8 @@ public class Server extends HDLProcess {
 	private Object instanceLock = new Object();
 	private Object toProposeLock = new Object();
 	private int round = 0;
-	private Map<BFTMessage, Set<Integer>> prepareCount;
-	private Map<BFTMessage, Set<Integer>> commitCount;
+	private Map<BFTMessage<BlockchainNode>, Set<Integer>> prepareCount;
+	private Map<BFTMessage<BlockchainNode>, Set<Integer>> commitCount;
 
 
 	public Server(int id, int port) throws UnknownHostException {
@@ -64,12 +64,6 @@ public class Server extends HDLProcess {
     public String getBlockChainStringRaw() {
         return blockchainState.getRaw();
     }
-
-	// public void submitCreateAccountTransaction() throws UnknownHostException, IllegalStateException, InterruptedException {
-	// 	TESClientAPI api = new TESClientAPI(this.getID());
-	// 	api.createAccount(getPublicKey(), getPrivateKey());
-	// 	// TODO check response
-	// }
 
 	public void execute() throws IllegalThreadStateException {
 		ibftBroadcast = new BestEffortBroadcast(channel, InstanceManager.getAllParticipants());
@@ -160,7 +154,7 @@ public class Server extends HDLProcess {
 				handleClientRequest(incomingMessage);
 				break;
 			case BFT:
-				switch(((BFTMessage) incomingMessage.getMessage()).getType()) {
+				switch(((BFTMessage<BlockchainNode>) incomingMessage.getMessage()).getType()) {
 					case PRE_PREPARE:
 						handlePrePrepare(incomingMessage);
 						break;
@@ -186,7 +180,7 @@ public class Server extends HDLProcess {
 		if (this.equals(InstanceManager.getLeader(currentInstance, round))) {
 			System.out.printf("[L] Server %d starting instance %d of consensus %n", this.getID(), currentInstance);
 			// Creates PRE_PREPARE message
-			BFTMessage pre_prepare = new BFTMessage(BFTMessage.Type.PRE_PREPARE, currentInstance, round, value);
+			BFTMessage<BlockchainNode> pre_prepare = new BFTMessage<>(BFTMessage.Type.PRE_PREPARE, currentInstance, round, value);
 			pre_prepare.signMessage(this.getPrivateKey());
 			// Broadcasts PRE_PREPARE
 			ibftBroadcast.broadcast(pre_prepare);
@@ -255,13 +249,13 @@ public class Server extends HDLProcess {
 			!pre_prepare.getMessage().hasValidSignature(pre_prepare.getSender().getPublicKey()))
 			return;
 
-		BFTMessage message = (BFTMessage) pre_prepare.getMessage();
+		BFTMessage<BlockchainNode> message = (BFTMessage<BlockchainNode>) pre_prepare.getMessage();
 
 		System.err.printf("%sServer %d received valid PRE_PREPARE from %d of consensus %d %n",
 			InstanceManager.getLeader(currentInstance, round).equals(this)? "[L] ": "", this.getID(), pre_prepare.getSender().getID(), message.getInstance());
 
 		// Creates PREPARE message
-		BFTMessage prepare = new BFTMessage(BFTMessage.Type.PREPARE, message.getInstance(), message.getRound(), message.getValue());
+		BFTMessage<BlockchainNode> prepare = new BFTMessage<>(BFTMessage.Type.PREPARE, message.getInstance(), message.getRound(), message.getValue());
 
 		// Broadcasts PREPARE
 		ibftBroadcast.broadcast(prepare);
@@ -269,7 +263,7 @@ public class Server extends HDLProcess {
 	}
 
 	private void handlePrepare(LinkMessage prepare) throws InterruptedException {
-		BFTMessage message = (BFTMessage) prepare.getMessage();
+		BFTMessage<BlockchainNode> message = (BFTMessage<BlockchainNode>) prepare.getMessage();
 
 		System.err.println("Quorum = " + InstanceManager.getQuorum());
 		System.err.printf("%sServer %d received valid PREPARE from %d of consensus %d %n",
@@ -289,7 +283,7 @@ public class Server extends HDLProcess {
 
 
 			// Creates COMMIT message
-			BFTMessage commit = new BFTMessage(BFTMessage.Type.COMMIT, message.getInstance(), message.getRound(), message.getValue());
+			BFTMessage<BlockchainNode> commit = new BFTMessage<>(BFTMessage.Type.COMMIT, message.getInstance(), message.getRound(), message.getValue());
 
 			// Broadcasts COMMIT
 			ibftBroadcast.broadcast(commit);
@@ -297,7 +291,7 @@ public class Server extends HDLProcess {
 	}
 
 	private void handleCommit(LinkMessage commit) throws InterruptedException {
-		BFTMessage message = (BFTMessage) commit.getMessage();
+		BFTMessage<BlockchainNode> message = (BFTMessage<BlockchainNode>) commit.getMessage();
 
 		System.err.printf("%sServer %d received valid COMMIT from %d of consensus %d %n",
 			InstanceManager.getLeader(message.getInstance(), round).equals(this)? "[L] ": "", this.getID(), commit.getSender().getID(), message.getInstance());
@@ -319,7 +313,7 @@ public class Server extends HDLProcess {
 		}
 	}
 
-	private void decide(BFTMessage message) throws InterruptedException {
+	private void decide(BFTMessage<BlockchainNode> message) throws InterruptedException {
 		BlockchainNode block = message.getValue();
 
 		for (int j = 0; j < block.getTransactions().size(); j++) {
