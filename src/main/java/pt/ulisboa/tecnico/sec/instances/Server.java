@@ -2,19 +2,19 @@ package pt.ulisboa.tecnico.sec.instances;
 
 import java.net.SocketTimeoutException;
 import java.net.UnknownHostException;
-import java.util.HashMap;
-import java.util.HashSet;
+import java.security.PublicKey;
 import java.util.List;
-import java.util.ArrayList;
 import java.util.Map;
-import java.util.Set;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.AbstractMap.SimpleImmutableEntry;
 
+import pt.ulisboa.tecnico.sec.blockchain.BlockchainNode;
+import pt.ulisboa.tecnico.sec.blockchain.BlockchainState;
 import pt.ulisboa.tecnico.sec.broadcasts.BestEffortBroadcast;
-import pt.ulisboa.tecnico.sec.ibft.BlockchainState;
-import pt.ulisboa.tecnico.sec.ibft.BlockchainNode;
 import pt.ulisboa.tecnico.sec.ibft.HDLProcess;
 import pt.ulisboa.tecnico.sec.links.AuthenticatedPerfectLink;
+import pt.ulisboa.tecnico.sec.links.Channel;
 import pt.ulisboa.tecnico.sec.messages.BFTMessage;
 import pt.ulisboa.tecnico.sec.messages.ClientRequestMessage;
 import pt.ulisboa.tecnico.sec.messages.ClientResponseMessage;
@@ -23,34 +23,34 @@ import pt.ulisboa.tecnico.sec.tes.TESState;
 import pt.ulisboa.tecnico.sec.tes.transactions.Transaction;
 
 
+@SuppressWarnings("unchecked")
 public class Server extends HDLProcess {
 	private boolean running = false;
 	private boolean kys = true;
-	private AuthenticatedPerfectLink channel;
+	private Channel channel;
 	private BestEffortBroadcast ibftBroadcast;
 	private List<SimpleImmutableEntry<Transaction, HDLProcess>> pendingRequests;
 	private BlockchainState blockchainState;
 	private BlockchainNode toPropose;
 	private TESState tesState;
 
-	// IBFT related variables
-	private int instance = 0;
-	private Object instanceLock = new Object();
+	// TES related variables
+	private Consensus<BlockchainNode> consensus;
 	private Object toProposeLock = new Object();
-	private int round = 0;
-	private Map<BFTMessage<BlockchainNode>, Set<Integer>> prepareCount;
-	private Map<BFTMessage<BlockchainNode>, Set<Integer>> commitCount;
-
+	private Map<PublicKey, Integer> clientsSeqNum;
 
 	public Server(int id, int port) throws UnknownHostException {
 		super(id, port);
 		channel = new AuthenticatedPerfectLink(this);
 		pendingRequests = new ArrayList<>();
-		prepareCount = new HashMap<>();
-		commitCount = new HashMap<>();
 		blockchainState = new BlockchainState();
 		toPropose = new BlockchainNode();
 		tesState = new TESState();
+		clientsSeqNum = new HashMap<>();
+	}
+
+	protected Channel getChannel() {
+		return this.channel;
 	}
 
 	public TESState getTESState() {
@@ -67,6 +67,7 @@ public class Server extends HDLProcess {
 
 	public void execute() throws IllegalThreadStateException {
 		ibftBroadcast = new BestEffortBroadcast(channel, InstanceManager.getAllParticipants());
+		consensus = new Consensus<>(this, ibftBroadcast);
 
 		this.running = true;
 		this.kys = false;
@@ -147,6 +148,24 @@ public class Server extends HDLProcess {
 		System.out.printf("Server %d closed%n", this.getID());
 	}
 
+	private boolean checkTransactionNonce(Transaction t) {
+		clientsSeqNum.putIfAbsent(t.getSource(), Integer.MIN_VALUE);
+		int nonce = clientsSeqNum.get(t.getSource());
+
+		if (t.getNonce() > nonce) clientsSeqNum.replace(t.getSource(), nonce, t.getNonce());
+		else return false;
+
+		return true;
+	}
+
+	private boolean verifyBlockChainNode(BlockchainNode node) {
+
+		for (Transaction t : node.getTransactions().stream().sorted((x, y) -> x.getNonce() - y.getNonce()).toList()) {
+			if (!t.checkSyntax() || !t.validateTransaction() || !checkTransactionNonce(t)) return false;
+		}
+
+		return true;
+	}
 
 	private void handleIncomingMessage(LinkMessage incomingMessage) throws InterruptedException {
 		switch (incomingMessage.getMessage().getMessageType()) {
@@ -154,36 +173,25 @@ public class Server extends HDLProcess {
 				handleClientRequest(incomingMessage);
 				break;
 			case BFT:
-				switch(((BFTMessage<BlockchainNode>) incomingMessage.getMessage()).getType()) {
+				BFTMessage<BlockchainNode> message = (BFTMessage<BlockchainNode>) incomingMessage.getMessage();
+				switch (message.getType()) {
 					case PRE_PREPARE:
-						handlePrePrepare(incomingMessage);
+						verifyBlockChainNode(message.getValue());
+						this.consensus.handlePrePrepare(incomingMessage);
 						break;
 					case PREPARE:
-						handlePrepare(incomingMessage);
+						this.consensus.handlePrepare(incomingMessage);
 						break;
 					case COMMIT:
-						handleCommit(incomingMessage);
+						BFTMessage<BlockchainNode> commitResult = this.consensus.handleCommit(incomingMessage);
+						if (commitResult != null) {
+							decide(commitResult);
+						}
 						break;
 				}
 				break;
 			default:
 				break;
-		}
-	}
-
-	// Start IBFT protocol if this process is the leader
-	private void startConsensus(BlockchainNode value) throws InterruptedException {
-		int currentInstance = 0;
-		synchronized (instanceLock) {
-			currentInstance = instance++;
-		}
-		if (this.equals(InstanceManager.getLeader(currentInstance, round))) {
-			System.out.printf("[L] Server %d starting instance %d of consensus %n", this.getID(), currentInstance);
-			// Creates PRE_PREPARE message
-			BFTMessage<BlockchainNode> pre_prepare = new BFTMessage<>(BFTMessage.Type.PRE_PREPARE, currentInstance, round, value);
-			pre_prepare.signMessage(this.getPrivateKey());
-			// Broadcasts PRE_PREPARE
-			ibftBroadcast.broadcast(pre_prepare);
 		}
 	}
 
@@ -199,7 +207,7 @@ public class Server extends HDLProcess {
 		}
 
 		if (toProposeCopy != null) {
-			startConsensus(toProposeCopy);
+			this.consensus.startConsensus(toProposeCopy);
 		}
 	}
 
@@ -214,8 +222,8 @@ public class Server extends HDLProcess {
 		ClientRequestMessage requestMessage = (ClientRequestMessage) request.getMessage();
 		Transaction transaction = requestMessage.getTransaction();
 
-		if (!transaction.validateTransaction() || !transaction.checkSyntax()) {
-            sendClientResponse(request.getSender(), ClientResponseMessage.Status.REJECTED, -1);
+		if (!transaction.validateTransaction() || !transaction.checkSyntax() || !checkTransactionNonce(transaction)) {
+			sendClientResponse(request.getSender(), ClientResponseMessage.Status.REJECTED, -1);
 			return;
 		}
 
@@ -226,6 +234,8 @@ public class Server extends HDLProcess {
 
 		Thread.sleep(BlockchainNode.FILL_TIMEOUT);
 
+		// After waiting for the timeout, check if block is still the same
+		//  and if it is, add that block to the blockchain.
 		boolean start = false;
 		synchronized (toProposeLock) {
 			if (toPropose.equals(toProposeCopy)) {
@@ -234,82 +244,7 @@ public class Server extends HDLProcess {
 			}
 		}
 		if (start) {
-			startConsensus(toProposeCopy);
-		}
-	}
-
-	private void handlePrePrepare(LinkMessage pre_prepare) throws InterruptedException {
-		int currentInstance;
-		synchronized (instanceLock) {
-			currentInstance = instance;
-		}
-
-		// Authenticates sender of the PRE_PREPARE message as the Leader (JUSTIFY_PRE_PREPARE)
-		if (!InstanceManager.getLeader(currentInstance, round).equals(pre_prepare.getSender()) ||
-			!pre_prepare.getMessage().hasValidSignature(pre_prepare.getSender().getPublicKey()))
-			return;
-
-		BFTMessage<BlockchainNode> message = (BFTMessage<BlockchainNode>) pre_prepare.getMessage();
-
-		System.err.printf("%sServer %d received valid PRE_PREPARE from %d of consensus %d %n",
-			InstanceManager.getLeader(currentInstance, round).equals(this)? "[L] ": "", this.getID(), pre_prepare.getSender().getID(), message.getInstance());
-
-		// Creates PREPARE message
-		BFTMessage<BlockchainNode> prepare = new BFTMessage<>(BFTMessage.Type.PREPARE, message.getInstance(), message.getRound(), message.getValue());
-
-		// Broadcasts PREPARE
-		ibftBroadcast.broadcast(prepare);
-
-	}
-
-	private void handlePrepare(LinkMessage prepare) throws InterruptedException {
-		BFTMessage<BlockchainNode> message = (BFTMessage<BlockchainNode>) prepare.getMessage();
-
-		System.err.println("Quorum = " + InstanceManager.getQuorum());
-		System.err.printf("%sServer %d received valid PREPARE from %d of consensus %d %n",
-			InstanceManager.getLeader(message.getInstance(), round).equals(this)? "[L] ": "", this.getID(), prepare.getSender().getID(), message.getInstance());
-
-		int count = 0;
-		synchronized (prepareCount) {
-			prepareCount.putIfAbsent(message, new HashSet<>());
-			prepareCount.get(message).add(prepare.getSender().getID());
-			count = prepareCount.get(message).size();
-		}
-
-		// Reaching a quorum of PREPARE messages (given by different servers)
-		if (count == InstanceManager.getQuorum()) {
-			System.out.printf("%sServer %d received valid PREPARE quorum of consensus %d with value %s %n",
-				InstanceManager.getLeader(message.getInstance(), round).equals(this)? "[L] ": "", this.getID(), message.getInstance(), message.getValue());
-
-
-			// Creates COMMIT message
-			BFTMessage<BlockchainNode> commit = new BFTMessage<>(BFTMessage.Type.COMMIT, message.getInstance(), message.getRound(), message.getValue());
-
-			// Broadcasts COMMIT
-			ibftBroadcast.broadcast(commit);
-		}
-	}
-
-	private void handleCommit(LinkMessage commit) throws InterruptedException {
-		BFTMessage<BlockchainNode> message = (BFTMessage<BlockchainNode>) commit.getMessage();
-
-		System.err.printf("%sServer %d received valid COMMIT from %d of consensus %d %n",
-			InstanceManager.getLeader(message.getInstance(), round).equals(this)? "[L] ": "", this.getID(), commit.getSender().getID(), message.getInstance());
-
-		int count = 0;
-		synchronized (commitCount) {
-			commitCount.putIfAbsent(message, new HashSet<>());
-			commitCount.get(message).add(commit.getSender().getID());
-			count = commitCount.get(message).size();
-		}
-
-		// Reaching a quorum of COMMIT messages (given by different servers)
-		if (count == InstanceManager.getQuorum()) {
-			System.out.printf("%sServer %d received valid COMMIT quorum of consensus %d with value %s %n",
-				InstanceManager.getLeader(message.getInstance(), round).equals(this)? "[L] ": "", this.getID(), message.getInstance(), message.getValue());
-
-			// Performs DECIDE
-			decide(message);
+			this.consensus.startConsensus(toProposeCopy);
 		}
 	}
 
@@ -330,15 +265,13 @@ public class Server extends HDLProcess {
 				}
 			}
 			if (idx == -1) {
-				System.err.printf("%sServer %d request %s was lost %n",
-					InstanceManager.getLeader(message.getInstance(), round).equals(this)? "[L] ": "", this.getID(), transaction);
+				System.err.printf("Server %d request %s was lost %n", this.getID(), transaction);
 				continue;
 			}
 
 			// Sending response to the client
 			HDLProcess client = pendingRequests.remove(idx).getValue();
-			System.out.printf("%sServer %d deciding for client %s with proposed value %s at instance %d %n",
-				InstanceManager.getLeader(message.getInstance(), round).equals(this)? "[L] ": "", this.getID(), client, block, message.getInstance());
+			System.out.printf("Server %d deciding for client %s with proposed value %s at instance %d%n", this.getID(), client, block, message.getInstance());
 
 			ClientResponseMessage.Status status = successfulTransaction ? ClientResponseMessage.Status.OK : ClientResponseMessage.Status.REJECTED;
 

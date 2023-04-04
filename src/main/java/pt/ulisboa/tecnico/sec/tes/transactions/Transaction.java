@@ -36,7 +36,7 @@ public abstract class Transaction {
     public String getSourceBase64() { return KeyHandler.KeyBase64(_source); }
     public String getSourceBase64Readable() { return KeyHandler.KeyBase64Readable(_source); }
     public TESOperation getOperation() { return _operation; }
-    protected int getNonce() { return _nonce; }
+    public int getNonce() { return _nonce; }
     protected String getChallenge() { return _challenge; }
 
 

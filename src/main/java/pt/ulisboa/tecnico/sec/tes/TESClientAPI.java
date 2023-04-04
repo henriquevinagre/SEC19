@@ -23,7 +23,6 @@ import pt.ulisboa.tecnico.sec.tes.transactions.CheckBalanceTransaction;
 import pt.ulisboa.tecnico.sec.tes.transactions.CreateAccountTransaction;
 import pt.ulisboa.tecnico.sec.tes.transactions.Transaction;
 import pt.ulisboa.tecnico.sec.tes.transactions.TransferTransaction;
-import pt.ulisboa.tecnico.sec.tes.transactions.Transaction.TESOperation;
 
 public class TESClientAPI extends HDLProcess {
 
@@ -38,20 +37,23 @@ public class TESClientAPI extends HDLProcess {
 
     public ClientResponseMessage createAccount(PublicKey source, PrivateKey sourceAuthKey) throws IllegalStateException, InterruptedException {
         Transaction t = new CreateAccountTransaction(source);
-        t.authenticateTransaction(nonce++, sourceAuthKey);
+        //t.authenticateTransaction(nonce++, sourceAuthKey);
+        t.authenticateTransaction(nonce, sourceAuthKey);
         return this.appendTransaction(t);
     }
 
     public ClientResponseMessage transfer(PublicKey source, PublicKey destination, double amount, PrivateKey sourceAuthKey) throws IllegalStateException, InterruptedException {
         Transaction t = new TransferTransaction(source, destination, amount);
-        t.authenticateTransaction(nonce++, sourceAuthKey);  // FIXME: nonces
+        //t.authenticateTransaction(nonce++, sourceAuthKey);  // FIXME: nonces
+        t.authenticateTransaction(nonce, sourceAuthKey);  // FIXME: nonces
         return this.appendTransaction(t);
     }
 
     // TODO: Gotta implement reads!
     public ClientResponseMessage checkBalance(PublicKey source, PublicKey owner, PrivateKey sourceAuthKey) throws IllegalStateException, InterruptedException {
         Transaction t = new CheckBalanceTransaction(source, owner);
-        t.authenticateTransaction(nonce++, sourceAuthKey);  // FIXME: checkbalance transaction must not be in the blockchain's blocks
+        //t.authenticateTransaction(nonce++, sourceAuthKey);  // FIXME: checkbalance transaction must not be in the blockchain's blocks
+        t.authenticateTransaction(nonce, sourceAuthKey);  // FIXME: checkbalance transaction must not be in the blockchain's blocks
         return new CheckBalanceResponseMessage(ClientResponseMessage.Status.REJECTED, -1, Double.MAX_VALUE); // money !!!!!
     }
 

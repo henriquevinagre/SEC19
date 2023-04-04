@@ -103,7 +103,8 @@ public class IBFTTest  {
         }
 
         for (Server server : servers) {
-            assertTrue("The client message was not appended to blockchain", client.get_commands().equals(server.getBlockChainStringRaw()));
+            // FIXME: Multiple client commands, gotta check if they were all added
+            assertTrue("The client message was not appended to blockchain", client.getCommands().equals(server.getBlockChainStringRaw()));
         }
 
         // ClientResponseMessage response = client.getResponse();

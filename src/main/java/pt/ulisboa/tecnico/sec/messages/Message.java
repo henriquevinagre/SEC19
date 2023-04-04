@@ -8,8 +8,8 @@ import java.security.PublicKey;
 
 import javax.crypto.SecretKey;
 
+import pt.ulisboa.tecnico.sec.blockchain.BlockchainNode;
 import pt.ulisboa.tecnico.sec.crypto.AuthenticationHandler;
-import pt.ulisboa.tecnico.sec.ibft.BlockchainNode;
 
 public abstract class Message {
     

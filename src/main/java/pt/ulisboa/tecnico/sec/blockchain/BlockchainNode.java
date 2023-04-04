@@ -1,4 +1,4 @@
-package pt.ulisboa.tecnico.sec.ibft;
+package pt.ulisboa.tecnico.sec.blockchain;
 
 import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;
@@ -8,6 +8,7 @@ import java.security.PublicKey;
 import java.util.ArrayList;
 import java.util.List;
 
+import pt.ulisboa.tecnico.sec.ibft.IBFTValueIT;
 import pt.ulisboa.tecnico.sec.tes.transactions.Transaction;
 import pt.ulisboa.tecnico.sec.tes.transactions.TransferTransaction;
 

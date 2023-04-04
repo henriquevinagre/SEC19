@@ -1,4 +1,4 @@
-package pt.ulisboa.tecnico.sec.ibft;
+package pt.ulisboa.tecnico.sec.blockchain;
 
 import java.util.HashMap;
 import java.util.Map;
