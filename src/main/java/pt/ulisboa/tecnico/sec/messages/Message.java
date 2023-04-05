@@ -17,6 +17,7 @@ public abstract class Message {
 
     public enum MessageType {
         BFT,
+        PROPAGATE_CHANGES,
         CLIENT_REQUEST,
         CLIENT_RESPONSE,
         ACK
@@ -75,6 +76,9 @@ public abstract class Message {
                 break;
             case ACK:
                 message = new ACKMessage().fromDataInputStream(dis);
+                break;
+            case PROPAGATE_CHANGES:
+                message = new PropagateChangesMessage().fromDataInputStream(dis);
                 break;
             default:
                 throw new IllegalArgumentException("Unknown message type: " + messageType);

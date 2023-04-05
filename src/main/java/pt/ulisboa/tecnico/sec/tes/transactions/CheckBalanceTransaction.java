@@ -11,6 +11,10 @@ import pt.ulisboa.tecnico.sec.crypto.KeyHandler;
 import pt.ulisboa.tecnico.sec.tes.TESAccount;
 
 public class CheckBalanceTransaction extends Transaction {
+    public enum Read {
+        STRONGLY_CONSISTENT,
+        WEAKLY_CONSISTENT
+    }
 
     private PublicKey owner;
 

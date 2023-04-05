@@ -5,9 +5,12 @@ import java.net.UnknownHostException;
 import java.security.PublicKey;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.AbstractMap.SimpleImmutableEntry;
+import java.util.stream.Collectors;
 
 import pt.ulisboa.tecnico.sec.blockchain.BlockchainNode;
 import pt.ulisboa.tecnico.sec.blockchain.BlockchainState;
@@ -19,8 +22,12 @@ import pt.ulisboa.tecnico.sec.messages.BFTMessage;
 import pt.ulisboa.tecnico.sec.messages.ClientRequestMessage;
 import pt.ulisboa.tecnico.sec.messages.ClientResponseMessage;
 import pt.ulisboa.tecnico.sec.messages.LinkMessage;
+import pt.ulisboa.tecnico.sec.messages.PropagateChangesMessage;
+import pt.ulisboa.tecnico.sec.tes.SignedTESAccount;
+import pt.ulisboa.tecnico.sec.tes.TESAccount;
 import pt.ulisboa.tecnico.sec.tes.TESState;
 import pt.ulisboa.tecnico.sec.tes.transactions.Transaction;
+import pt.ulisboa.tecnico.sec.tes.transactions.TransferTransaction;
 
 
 @SuppressWarnings("unchecked")
@@ -160,7 +167,7 @@ public class Server extends HDLProcess {
 
 	private boolean verifyBlockChainNode(BlockchainNode node) {
 
-		for (Transaction t : node.getTransactions().stream().sorted((x, y) -> x.getNonce() - y.getNonce()).toList()) {
+		for (Transaction t : node.getTransactions().stream().sorted((x, y) -> x.getNonce() - y.getNonce()).collect(Collectors.toList())) {
 			if (!t.checkSyntax() || !t.validateTransaction() || !checkTransactionNonce(t)) return false;
 		}
 
@@ -190,9 +197,18 @@ public class Server extends HDLProcess {
 						break;
 				}
 				break;
+			case PROPAGATE_CHANGES:
+				handleChangesPropagation(incomingMessage);
+				break;
 			default:
 				break;
 		}
+	}
+
+	public void handleChangesPropagation(LinkMessage message) {
+		PropagateChangesMessage propagateMessage = (PropagateChangesMessage) message.getMessage();
+		System.out.printf("Server %d recieved account updates: %s%n", this.getID(), propagateMessage.toString());
+		// FIXME: create struct to store signed changes (and store them here)
 	}
 
 	private void addTransactionToBlockchain(Transaction transaction) throws InterruptedException {
@@ -250,11 +266,14 @@ public class Server extends HDLProcess {
 
 	private void decide(BFTMessage<BlockchainNode> message) throws InterruptedException {
 		BlockchainNode block = message.getValue();
+		List<Transaction> successfulTransactions = new ArrayList<>();
 
 		for (int j = 0; j < block.getTransactions().size(); j++) {
 			Transaction transaction = block.getTransactions().get(j);
 			// Perform transaction (in a whole)
 			boolean successfulTransaction = transaction.updateTESState(tesState);
+
+			if (successfulTransaction) successfulTransactions.add(transaction);
 
 			// Lookup for the source of the transaction
 			int idx = -1;
@@ -285,7 +304,9 @@ public class Server extends HDLProcess {
 		}
 
 		for (Transaction t : block.getRewards()) {
-			t.updateTESState(tesState);
+			if (t.updateTESState(tesState))
+				successfulTransactions.add(t);
+			
 			// FIXME: maybe just add balance to leader's account?
 			// tesState.getAccount(getPublicKey()).addBalance(BlockchainNode.TRANSACTION_FEE);
 			// TESAccount source = tesState.getAccount(t.getSource());
@@ -293,6 +314,29 @@ public class Server extends HDLProcess {
 		}
 
 		blockchainState.append(message.getInstance(), block);
+
+		propagateSignedChanges(message.getInstance(), successfulTransactions);
+	}
+
+	private void propagateSignedChanges(int timestamp, List<Transaction> transactions) throws IllegalStateException, InterruptedException {
+		Set<PublicKey> updatedAccounts = new HashSet<>();
+
+		for (Transaction t : transactions) {
+			updatedAccounts.add(t.getSource());
+			if (t.getOperation().equals(Transaction.TESOperation.TRANSFER))
+				updatedAccounts.add(((TransferTransaction) t).getDestination());
+		}
+
+		PropagateChangesMessage message = new PropagateChangesMessage(timestamp);
+
+		for (PublicKey key : updatedAccounts) {
+			TESAccount account = tesState.getAccount(key);
+			SignedTESAccount accountState = new SignedTESAccount(account);
+			accountState.authenticateState(this.getPrivateKey());
+			message.addAccount(accountState);
+		}
+
+		ibftBroadcast.broadcast(message);
 	}
 
 	public void kill() {
