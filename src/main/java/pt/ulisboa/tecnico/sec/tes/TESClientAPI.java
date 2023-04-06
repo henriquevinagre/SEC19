@@ -23,6 +23,7 @@ import pt.ulisboa.tecnico.sec.tes.transactions.CheckBalanceTransaction;
 import pt.ulisboa.tecnico.sec.tes.transactions.CreateAccountTransaction;
 import pt.ulisboa.tecnico.sec.tes.transactions.Transaction;
 import pt.ulisboa.tecnico.sec.tes.transactions.TransferTransaction;
+import pt.ulisboa.tecnico.sec.tes.transactions.CheckBalanceTransaction.ReadType;
 
 public class TESClientAPI extends HDLProcess {
 
@@ -50,10 +51,16 @@ public class TESClientAPI extends HDLProcess {
     }
 
     // TODO: Gotta implement reads!
-    public ClientResponseMessage checkBalance(PublicKey source, PublicKey owner, PrivateKey sourceAuthKey) throws IllegalStateException, InterruptedException {
-        Transaction t = new CheckBalanceTransaction(source, owner);
+    public ClientResponseMessage checkBalance(PublicKey source, PublicKey owner, PrivateKey sourceAuthKey, ReadType read) throws IllegalStateException, InterruptedException {
+        Transaction t = new CheckBalanceTransaction(source, owner, read);
         //t.authenticateTransaction(nonce++, sourceAuthKey);  // FIXME: checkbalance transaction must not be in the blockchain's blocks
         t.authenticateTransaction(nonce, sourceAuthKey);  // FIXME: checkbalance transaction must not be in the blockchain's blocks
+        ClientRequestMessage request = new ClientRequestMessage(t);
+
+        BestEffortBroadcast broadcastChannel = new BestEffortBroadcast(channel, InstanceManager.getAllParticipants());
+        broadcastChannel.broadcast(request);
+
+        // FIXME: deliver response and check if all signatures are correct
         return new CheckBalanceResponseMessage(ClientResponseMessage.Status.REJECTED, -1, Double.MAX_VALUE); // money !!!!!
     }
 

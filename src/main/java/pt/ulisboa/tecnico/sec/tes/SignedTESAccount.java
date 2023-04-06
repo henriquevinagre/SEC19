@@ -22,6 +22,9 @@ public class SignedTESAccount {
         this.tucs = account.getTucs();
     }
 
+    public PublicKey getOwner() { return owner; }
+    public double getBalance() { return tucs; }
+
     public void authenticateState(PrivateKey key) {
         try {
             this.signature = AuthenticationHandler.signBytes(key, this.getDataBytes());
@@ -79,6 +82,24 @@ public class SignedTESAccount {
         this.signature = dis.readUTF();
 
         return this;
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (!(obj instanceof SignedTESAccount)) return false;
+        SignedTESAccount sta = (SignedTESAccount) obj;
+        return sta.hashCode() == this.hashCode();
+    }
+
+    @Override
+    public int hashCode() {
+        int result = 17;
+
+        result = 31 * result + owner.hashCode();
+        result = 31 * result + signature.hashCode();
+        result = 31 * result + Double.hashCode(tucs);
+
+        return result;
     }
 
     public String toString() {

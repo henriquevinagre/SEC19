@@ -6,6 +6,7 @@ import java.security.PrivateKey;
 import pt.ulisboa.tecnico.sec.instances.Client;
 import pt.ulisboa.tecnico.sec.messages.ClientResponseMessage;
 import pt.ulisboa.tecnico.sec.tes.TESClientAPI;
+import pt.ulisboa.tecnico.sec.tes.transactions.CheckBalanceTransaction.ReadType;
 
 // Class for the Check Balance Command
 public class CheckBalanceCommand extends Command { // cmd: T B 1 1
@@ -23,7 +24,7 @@ public class CheckBalanceCommand extends Command { // cmd: T B 1 1
         PrivateKey senderAuthKey = api.getPrivateKey();
         PublicKey ownerKey = owner.getHDLInstance().getPublicKey();
 
-        return api.checkBalance(senderKey, ownerKey, senderAuthKey);
+        return api.checkBalance(senderKey, ownerKey, senderAuthKey, ReadType.WEAKLY_CONSISTENT);
     }
 
     @Override

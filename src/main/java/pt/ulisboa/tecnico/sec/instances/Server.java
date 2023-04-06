@@ -26,6 +26,7 @@ import pt.ulisboa.tecnico.sec.messages.PropagateChangesMessage;
 import pt.ulisboa.tecnico.sec.tes.SignedTESAccount;
 import pt.ulisboa.tecnico.sec.tes.TESAccount;
 import pt.ulisboa.tecnico.sec.tes.TESState;
+import pt.ulisboa.tecnico.sec.tes.transactions.CheckBalanceTransaction;
 import pt.ulisboa.tecnico.sec.tes.transactions.Transaction;
 import pt.ulisboa.tecnico.sec.tes.transactions.TransferTransaction;
 
@@ -46,6 +47,10 @@ public class Server extends HDLProcess {
 	private Object toProposeLock = new Object();
 	private Map<PublicKey, Integer> clientsSeqNum;
 
+	// For each block, keep a collection of signed states for each account.
+	// This collection is a set so that no attacker can send multiple of the same state.
+	private Map<Integer, Map<PublicKey, Set<SignedTESAccount>>> snapshots;
+
 	public Server(int id, int port) throws UnknownHostException {
 		super(id, port);
 		channel = new AuthenticatedPerfectLink(this);
@@ -54,6 +59,7 @@ public class Server extends HDLProcess {
 		toPropose = new BlockchainNode();
 		tesState = new TESState();
 		clientsSeqNum = new HashMap<>();
+		snapshots = new HashMap<>();
 	}
 
 	protected Channel getChannel() {
@@ -207,8 +213,51 @@ public class Server extends HDLProcess {
 
 	public void handleChangesPropagation(LinkMessage message) {
 		PropagateChangesMessage propagateMessage = (PropagateChangesMessage) message.getMessage();
+		PublicKey senderKey = message.getSender().getPublicKey();
+
 		System.out.printf("Server %d recieved account updates: %s%n", this.getID(), propagateMessage.toString());
-		// FIXME: create struct to store signed changes (and store them here)
+
+		snapshots.putIfAbsent(propagateMessage.getTimestamp(), new HashMap<>());
+		Map<PublicKey, Set<SignedTESAccount>> timestampMap = snapshots.get(propagateMessage.getTimestamp());
+
+		// FIXME: if message contains one or more incorrect state, reject all?
+
+		for (SignedTESAccount state : propagateMessage.getChanges()) {
+			if (state.validateState(senderKey)) {
+				timestampMap.putIfAbsent(state.getOwner(), new HashSet<>());
+				Set<SignedTESAccount> signedStates = timestampMap.get(state.getOwner());
+				signedStates.add(state);
+			}
+		}
+	}
+
+	public Set<SignedTESAccount> weaklyConsistentRead(PublicKey accountKey) {
+		// snapshots ordered from most recent timestamp to older timestamp
+		List<Map<PublicKey, Set<SignedTESAccount>>> sortedList = snapshots.entrySet()
+			.stream()
+			.sorted(Map.Entry.<Integer, Map<PublicKey, Set<SignedTESAccount>>>comparingByKey().reversed())
+			.map(Map.Entry::getValue)
+			.collect(Collectors.toList());
+
+		for (Map<PublicKey, Set<SignedTESAccount>> timestampMap : sortedList) {
+			// if account wasn't updated in this timestamp or there aren't enough tokens, skip to older timestamp
+			if (timestampMap.get(accountKey) == null || timestampMap.get(accountKey).size() < InstanceManager.getNumberOfByzantines() + 1) continue;
+
+			// verify that there are f+1 equal states
+			Map<Double, Integer> tucsAmountCounter = new HashMap<>();
+
+			for (SignedTESAccount state : timestampMap.get(accountKey)) {
+				tucsAmountCounter.putIfAbsent(state.getBalance(), 0);
+				int count = tucsAmountCounter.get(state.getBalance());
+
+				if (count == InstanceManager.getNumberOfByzantines())
+					return timestampMap.get(accountKey);
+
+				tucsAmountCounter.put(state.getBalance(), count + 1);
+			}
+		}
+
+		return new HashSet<>();
 	}
 
 	private void addTransactionToBlockchain(Transaction transaction) throws InterruptedException {
@@ -237,6 +286,24 @@ public class Server extends HDLProcess {
 	private void handleClientRequest(LinkMessage request) throws InterruptedException {
 		ClientRequestMessage requestMessage = (ClientRequestMessage) request.getMessage();
 		Transaction transaction = requestMessage.getTransaction();
+
+		if (transaction.getOperation().equals(Transaction.TESOperation.CHECK_BALANCE)) {
+			CheckBalanceTransaction readTransaction = (CheckBalanceTransaction) transaction;
+
+			if (readTransaction.getReadType().equals(CheckBalanceTransaction.ReadType.WEAKLY_CONSISTENT)) {
+				Set<SignedTESAccount> signedStates = weaklyConsistentRead(readTransaction.getOwner());
+				System.out.printf("Server %d responded to client read: %s%n", this.getID(), signedStates.toString());
+				if (signedStates.isEmpty()) {
+					sendClientResponse(request.getSender(), ClientResponseMessage.Status.NOT_FOUND, -1);
+				}
+				else {
+					// FIXME: return signedStates to client
+				}
+			} 
+			else {
+				// FIXME: strongly consistent reads
+			}
+		}
 
 		if (!transaction.validateTransaction() || !transaction.checkSyntax() || !checkTransactionNonce(transaction)) {
 			sendClientResponse(request.getSender(), ClientResponseMessage.Status.REJECTED, -1);

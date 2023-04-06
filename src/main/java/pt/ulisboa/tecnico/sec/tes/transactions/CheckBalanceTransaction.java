@@ -11,16 +11,18 @@ import pt.ulisboa.tecnico.sec.crypto.KeyHandler;
 import pt.ulisboa.tecnico.sec.tes.TESAccount;
 
 public class CheckBalanceTransaction extends Transaction {
-    public enum Read {
+    public enum ReadType {
         STRONGLY_CONSISTENT,
         WEAKLY_CONSISTENT
     }
 
     private PublicKey owner;
+    private ReadType readType;
 
-    public CheckBalanceTransaction(PublicKey creator, PublicKey owner) {
+    public CheckBalanceTransaction(PublicKey creator, PublicKey owner, ReadType readType) {
         super(TESOperation.CHECK_BALANCE, creator);
         this.owner = owner;
+        this.readType = readType;
     }
 
     // In-progress transaction
@@ -29,9 +31,11 @@ public class CheckBalanceTransaction extends Transaction {
     }
     
     private void setOwner(PublicKey key) { this.owner = key; }
+    private void setReadType(ReadType type) { this.readType = type; }
     public PublicKey getOwner() { return this.owner; }
     public String getOwnerBase64() { return KeyHandler.KeyBase64(owner); }
     public String getOwnerBase64Readable() { return KeyHandler.KeyBase64Readable(owner); }
+    public ReadType getReadType() { return this.readType; }
 
     public byte[] toByteArray() throws IOException {
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
@@ -39,6 +43,9 @@ public class CheckBalanceTransaction extends Transaction {
 
         // serialize operation
         dos.writeInt(super.getOperation().ordinal());
+
+        // serialize read type
+        dos.writeInt(this.getReadType().ordinal());
 
         // serialize owner key
         byte[] ownerBytes = this.getOwner().getEncoded();
@@ -62,6 +69,8 @@ public class CheckBalanceTransaction extends Transaction {
         
         CheckBalanceTransaction transaction = new CheckBalanceTransaction();
 
+        transaction.setReadType(ReadType.values()[dis.readInt()]);
+
         byte[] ownerBytes = new byte[dis.readInt()];
         dis.readFully(ownerBytes);
 
@@ -84,6 +93,9 @@ public class CheckBalanceTransaction extends Transaction {
 
         // serialize operation
         dos.writeInt(super.getOperation().ordinal());
+
+        // serialize read type
+        dos.writeInt(this.getReadType().ordinal());
 
         // serialize owner key
         byte[] ownerBytes = this.getOwner().getEncoded();

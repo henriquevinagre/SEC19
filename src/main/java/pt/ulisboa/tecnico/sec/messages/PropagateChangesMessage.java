@@ -25,6 +25,10 @@ public class PropagateChangesMessage extends Message {
         this.timestamp = timestamp;
     }
 
+    public List<SignedTESAccount> getChanges() {
+        return signedStates;
+    }
+
     public int getTimestamp() {
         return this.timestamp;
     }
@@ -91,7 +95,7 @@ public class PropagateChangesMessage extends Message {
         for (SignedTESAccount a : signedStates) {
             res += a.toString() + " | ";
         }
-        return String.format("%s/%d | %s", Message.MessageType.PROPAGATE_CHANGES.toString(), timestamp, res);
+        return String.format("%s { timestamp:%d | %s }", Message.MessageType.PROPAGATE_CHANGES.toString(), timestamp, res);
     }
     
 }
