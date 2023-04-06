@@ -77,7 +77,7 @@ public class SignedTESAccount {
         return baos.toByteArray();
     }
 
-    public SignedTESAccount fromDataInputStream(DataInputStream dis) throws IOException {
+    public SignedTESAccount fromDataInputStream(DataInputStream dis) throws IOException, IllegalStateException {
         this.tucs = dis.readDouble();
 
         // byte[] ownerKey = new byte[dis.readInt()];

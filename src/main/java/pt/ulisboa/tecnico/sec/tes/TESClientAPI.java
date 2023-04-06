@@ -79,13 +79,13 @@ public class TESClientAPI extends HDLProcess {
                 } catch (SocketTimeoutException e) {
                     continue;
                 }
-
+                
                 if (!response.getMessage().getMessageType().equals(Message.MessageType.CLIENT_RESPONSE) ||
                     sendersId.contains(response.getSender().getID()))
                     continue; // Ignoring response
 
-
                 ClientResponseMessage message = (ClientResponseMessage) response.getMessage();
+                System.out.printf("Client %d received response %s from %d with nonce %d (mine is %d)%n%n%n%n%n%n%n%n%n%n", this._id, message, response.getSender().getID(), message.getNonce(), transaction.getNonce());
 
                 // Ignore if it's not response for our transaction
                 if (message.getNonce() != transaction.getNonce()) continue;

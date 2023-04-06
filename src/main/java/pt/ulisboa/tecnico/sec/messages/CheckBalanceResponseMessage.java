@@ -14,12 +14,12 @@ public class CheckBalanceResponseMessage extends ClientResponseMessage {
     private Set<SignedTESAccount> signedTESAccount;
 
     public CheckBalanceResponseMessage() {
-        super();
+        super(ResponseType.CHECK_BALANCE);
         this.signedTESAccount = new HashSet<>();
     }
 
     public CheckBalanceResponseMessage(Status status, Integer timestamp, Integer nonce, Set<SignedTESAccount> states) {
-        super(status, timestamp, nonce);
+        super(ResponseType.CHECK_BALANCE, status, timestamp, nonce);
         this.signedTESAccount = states;
     }
 
@@ -31,26 +31,21 @@ public class CheckBalanceResponseMessage extends ClientResponseMessage {
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         DataOutputStream dos = new DataOutputStream(baos);
 
-        dos.write(super.toByteArray());
-        for (SignedTESAccount account : signedTESAccount) {
-            byte[] accountBytes = account.toByteArray();
-            dos.writeInt(accountBytes.length);
-            dos.write(accountBytes);
-        }
-        
+        dos.write(this.getDataBytes());
+        dos.writeUTF(super.mac);
+        dos.writeUTF(super.signature);
+
         return baos.toByteArray();
     }
 
     @Override
     public CheckBalanceResponseMessage fromDataInputStream(DataInputStream dis) throws IOException {
-        super.fromDataInputStream(dis);
-        int length = dis.readInt();
+        int accountNumber = dis.readInt();
 
-        while (length != 0) {
-            this.signedTESAccount.add(new SignedTESAccount().fromDataInputStream(dis));
-            length = dis.readInt();
+        for (int i = 0; i < accountNumber; i++) {
+            SignedTESAccount account = new SignedTESAccount().fromDataInputStream(dis);
+            this.signedTESAccount.add(account);
         }
-
         return this;
     }
 
@@ -59,9 +54,11 @@ public class CheckBalanceResponseMessage extends ClientResponseMessage {
         DataOutputStream dos = new DataOutputStream(baos);
 
         dos.write(super.getDataBytes());
+
+        dos.writeInt(signedTESAccount.size());
         for (SignedTESAccount account : signedTESAccount) {
             byte[] accountBytes = account.toByteArray();
-            dos.writeInt(accountBytes.length);
+            //dos.writeInt(accountBytes.length);
             dos.write(accountBytes);
         }
         

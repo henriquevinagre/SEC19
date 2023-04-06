@@ -23,6 +23,7 @@ import pt.ulisboa.tecnico.sec.messages.CheckBalanceResponseMessage;
 import pt.ulisboa.tecnico.sec.messages.ClientRequestMessage;
 import pt.ulisboa.tecnico.sec.messages.ClientResponseMessage;
 import pt.ulisboa.tecnico.sec.messages.LinkMessage;
+import pt.ulisboa.tecnico.sec.messages.Message;
 import pt.ulisboa.tecnico.sec.messages.PropagateChangesMessage;
 import pt.ulisboa.tecnico.sec.tes.SignedTESAccount;
 import pt.ulisboa.tecnico.sec.tes.TESAccount;
@@ -297,21 +298,16 @@ public class Server extends HDLProcess {
 
 			if (readTransaction.getReadType().equals(CheckBalanceTransaction.ReadType.WEAKLY_CONSISTENT)) {
 				Set<SignedTESAccount> signedStates = weaklyConsistentRead(readTransaction.getOwner());
-				System.out.printf("Server %d responded to client %d read: %s%n", this.getID(), request.getSender().getID(), signedStates.toString());
-				ClientResponseMessage.Status status;
-				int instance;
-				if (signedStates.isEmpty()) {
-					status = ClientResponseMessage.Status.NOT_FOUND;
-					instance = -1;
-				}
-				else {
+				ClientResponseMessage.Status status = ClientResponseMessage.Status.NOT_FOUND;
+				int instance = -1;
+				if (!signedStates.isEmpty()) {
 					status = ClientResponseMessage.Status.OK;
 					instance = 0;
 				}
 
-				//sendClientResponse(request.getSender(), new CheckBalanceResponseMessage(status, instance, transaction.getNonce(), signedStates));
-				sendClientResponse(request.getSender(), status, instance, transaction.getNonce());
-			} 
+				sendClientResponse(request.getSender(), new CheckBalanceResponseMessage(status, instance, transaction.getNonce(), signedStates));
+				// sendClientResponse(request.getSender(), status, instance, transaction.getNonce());
+			}
 			else {
 				// FIXME: strongly consistent reads
 			}

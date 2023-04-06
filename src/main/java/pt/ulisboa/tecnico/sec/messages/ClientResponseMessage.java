@@ -7,27 +7,50 @@ import java.io.IOException;
 
 public class ClientResponseMessage extends Message {
 
+    public enum ResponseType {
+        CHECK_BALANCE,
+        DEFAULT
+    }
+
     public enum Status {
         OK,
         NOT_FOUND,
         REJECTED
     }
 
+    private ResponseType responseType;
     private Status status;
     private Integer timestamp;
     private Integer nonce;
 
     public ClientResponseMessage() {
         super(MessageType.CLIENT_RESPONSE);
+        this.responseType = ResponseType.DEFAULT;
+    }
+
+    public ClientResponseMessage(ResponseType type) {
+        super(MessageType.CLIENT_RESPONSE);
+        this.responseType = type;
     }
 
     public ClientResponseMessage(Status status, Integer timestamp, Integer nonce) {
-        super(MessageType.CLIENT_RESPONSE);
+        this();
         this.status = status;
         this.timestamp = timestamp;
         this.nonce = nonce;
     }
 
+    public ClientResponseMessage(ResponseType type, Status status, Integer timestamp, Integer nonce) {
+        this(type);
+        this.status = status;
+        this.timestamp = timestamp;
+        this.nonce = nonce;
+    }
+
+    public ResponseType getResponseType() {
+        return this.responseType;
+    }
+    
     public Status getStatus() {
         return this.status;
     }
@@ -45,6 +68,7 @@ public class ClientResponseMessage extends Message {
         DataOutputStream dos = new DataOutputStream(baos);
 
         dos.writeInt(Message.MessageType.CLIENT_RESPONSE.ordinal());
+        dos.writeInt(responseType.ordinal());
         dos.writeInt(status.ordinal());
         dos.writeInt(timestamp);
         dos.writeInt(nonce);
@@ -65,11 +89,27 @@ public class ClientResponseMessage extends Message {
 
     @Override
     public ClientResponseMessage fromDataInputStream(DataInputStream dis) throws IOException {
-        this.status = Status.values()[dis.readInt()];
-        this.timestamp = dis.readInt();
-        this.nonce = dis.readInt();
+        this.responseType = ResponseType.values()[dis.readInt()];
+        
+        Status status = Status.values()[dis.readInt()];
+        int timestamp = dis.readInt();
+        int nonce = dis.readInt();
 
-        return this;
+        ClientResponseMessage message = this;
+        switch (responseType) {
+            case CHECK_BALANCE:
+                message = new CheckBalanceResponseMessage().fromDataInputStream(dis);
+                break;
+            case DEFAULT:
+            default:
+                break;
+        }
+
+        message.status = status;
+        message.timestamp = timestamp;
+        message.nonce = nonce;
+
+        return message;
     }
 
     @Override
