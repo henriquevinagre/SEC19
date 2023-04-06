@@ -19,6 +19,7 @@ import pt.ulisboa.tecnico.sec.ibft.HDLProcess;
 import pt.ulisboa.tecnico.sec.links.AuthenticatedPerfectLink;
 import pt.ulisboa.tecnico.sec.links.Channel;
 import pt.ulisboa.tecnico.sec.messages.BFTMessage;
+import pt.ulisboa.tecnico.sec.messages.CheckBalanceResponseMessage;
 import pt.ulisboa.tecnico.sec.messages.ClientRequestMessage;
 import pt.ulisboa.tecnico.sec.messages.ClientResponseMessage;
 import pt.ulisboa.tecnico.sec.messages.LinkMessage;
@@ -215,7 +216,7 @@ public class Server extends HDLProcess {
 		PropagateChangesMessage propagateMessage = (PropagateChangesMessage) message.getMessage();
 		PublicKey senderKey = message.getSender().getPublicKey();
 
-		System.out.printf("Server %d recieved account updates: %s%n", this.getID(), propagateMessage.toString());
+		System.out.printf("Server %d received account updates: %s%n", this.getID(), propagateMessage.toString());
 
 		snapshots.putIfAbsent(propagateMessage.getTimestamp(), new HashMap<>());
 		Map<PublicKey, Set<SignedTESAccount>> timestampMap = snapshots.get(propagateMessage.getTimestamp());
@@ -224,6 +225,7 @@ public class Server extends HDLProcess {
 
 		for (SignedTESAccount state : propagateMessage.getChanges()) {
 			if (state.validateState(senderKey)) {
+				// FIXME: Maybe set not needed since only one state for each account?
 				timestampMap.putIfAbsent(state.getOwner(), new HashSet<>());
 				Set<SignedTESAccount> signedStates = timestampMap.get(state.getOwner());
 				signedStates.add(state);
@@ -248,12 +250,12 @@ public class Server extends HDLProcess {
 
 			for (SignedTESAccount state : timestampMap.get(accountKey)) {
 				tucsAmountCounter.putIfAbsent(state.getBalance(), 0);
-				int count = tucsAmountCounter.get(state.getBalance());
+				int count = tucsAmountCounter.get(state.getBalance()) + 1;
+				tucsAmountCounter.replace(state.getBalance(), count);
 
-				if (count == InstanceManager.getNumberOfByzantines())
+				if (count == InstanceManager.getNumberOfByzantines() + 1) {
 					return timestampMap.get(accountKey);
-
-				tucsAmountCounter.put(state.getBalance(), count + 1);
+				}
 			}
 		}
 
@@ -276,11 +278,14 @@ public class Server extends HDLProcess {
 		}
 	}
 
-	private void sendClientResponse(HDLProcess client, ClientResponseMessage.Status status, int instance) throws IllegalStateException, InterruptedException {
-		ClientResponseMessage response = new ClientResponseMessage(status, instance);
-		LinkMessage toSend = new LinkMessage(response, this, client);
+	private void sendClientResponse(HDLProcess client, ClientResponseMessage message) throws IllegalStateException, InterruptedException {
+		LinkMessage toSend = new LinkMessage(message, this, client);
 
 		channel.send(toSend);
+	}
+
+	private void sendClientResponse(HDLProcess client, ClientResponseMessage.Status status, int instance, int nonce) throws IllegalStateException, InterruptedException {
+		sendClientResponse(client, new ClientResponseMessage(status, instance, nonce));
 	}
 
 	private void handleClientRequest(LinkMessage request) throws InterruptedException {
@@ -292,21 +297,30 @@ public class Server extends HDLProcess {
 
 			if (readTransaction.getReadType().equals(CheckBalanceTransaction.ReadType.WEAKLY_CONSISTENT)) {
 				Set<SignedTESAccount> signedStates = weaklyConsistentRead(readTransaction.getOwner());
-				System.out.printf("Server %d responded to client read: %s%n", this.getID(), signedStates.toString());
+				System.out.printf("Server %d responded to client %d read: %s%n", this.getID(), request.getSender().getID(), signedStates.toString());
+				ClientResponseMessage.Status status;
+				int instance;
 				if (signedStates.isEmpty()) {
-					sendClientResponse(request.getSender(), ClientResponseMessage.Status.NOT_FOUND, -1);
+					status = ClientResponseMessage.Status.NOT_FOUND;
+					instance = -1;
 				}
 				else {
-					// FIXME: return signedStates to client
+					status = ClientResponseMessage.Status.OK;
+					instance = 0;
 				}
+
+				//sendClientResponse(request.getSender(), new CheckBalanceResponseMessage(status, instance, transaction.getNonce(), signedStates));
+				sendClientResponse(request.getSender(), status, instance, transaction.getNonce());
 			} 
 			else {
 				// FIXME: strongly consistent reads
 			}
+
+			return;
 		}
 
 		if (!transaction.validateTransaction() || !transaction.checkSyntax() || !checkTransactionNonce(transaction)) {
-			sendClientResponse(request.getSender(), ClientResponseMessage.Status.REJECTED, -1);
+			sendClientResponse(request.getSender(), ClientResponseMessage.Status.REJECTED, -1, transaction.getNonce());
 			return;
 		}
 
@@ -363,7 +377,7 @@ public class Server extends HDLProcess {
 
 			new Thread(() -> {
 				try {
-					sendClientResponse(client, status, message.getInstance());
+					sendClientResponse(client, status, message.getInstance(), transaction.getNonce());
 				} catch (IllegalStateException | InterruptedException e) {
 					e.printStackTrace();
 				}
@@ -393,17 +407,19 @@ public class Server extends HDLProcess {
 			if (t.getOperation().equals(Transaction.TESOperation.TRANSFER))
 				updatedAccounts.add(((TransferTransaction) t).getDestination());
 		}
+		System.out.printf("Server %d propagating states for %d accounts.%n", this._id, updatedAccounts.size());
 
 		PropagateChangesMessage message = new PropagateChangesMessage(timestamp);
 
 		for (PublicKey key : updatedAccounts) {
 			TESAccount account = tesState.getAccount(key);
 			SignedTESAccount accountState = new SignedTESAccount(account);
-			accountState.authenticateState(this.getPrivateKey());
+			accountState.authenticateState(this.getPublicKey(), this.getPrivateKey());
 			message.addAccount(accountState);
 		}
 
 		ibftBroadcast.broadcast(message);
+
 	}
 
 	public void kill() {

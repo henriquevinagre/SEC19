@@ -14,7 +14,6 @@ import pt.ulisboa.tecnico.sec.broadcasts.BestEffortBroadcast;
 import pt.ulisboa.tecnico.sec.ibft.HDLProcess;
 import pt.ulisboa.tecnico.sec.instances.InstanceManager;
 import pt.ulisboa.tecnico.sec.links.AuthenticatedPerfectLink;
-import pt.ulisboa.tecnico.sec.messages.CheckBalanceResponseMessage;
 import pt.ulisboa.tecnico.sec.messages.ClientRequestMessage;
 import pt.ulisboa.tecnico.sec.messages.ClientResponseMessage;
 import pt.ulisboa.tecnico.sec.messages.LinkMessage;
@@ -38,35 +37,33 @@ public class TESClientAPI extends HDLProcess {
 
     public ClientResponseMessage createAccount(PublicKey source, PrivateKey sourceAuthKey) throws IllegalStateException, InterruptedException {
         Transaction t = new CreateAccountTransaction(source);
-        //t.authenticateTransaction(nonce++, sourceAuthKey);
-        t.authenticateTransaction(nonce, sourceAuthKey);
+        t.authenticateTransaction(nonce++, sourceAuthKey);
+        //t.authenticateTransaction(nonce, sourceAuthKey);
         return this.appendTransaction(t);
     }
 
     public ClientResponseMessage transfer(PublicKey source, PublicKey destination, double amount, PrivateKey sourceAuthKey) throws IllegalStateException, InterruptedException {
         Transaction t = new TransferTransaction(source, destination, amount);
-        //t.authenticateTransaction(nonce++, sourceAuthKey);  // FIXME: nonces
-        t.authenticateTransaction(nonce, sourceAuthKey);  // FIXME: nonces
+        t.authenticateTransaction(nonce++, sourceAuthKey);  // FIXME: nonces
+        //t.authenticateTransaction(nonce, sourceAuthKey);  // FIXME: nonces
         return this.appendTransaction(t);
     }
 
     // TODO: Gotta implement reads!
     public ClientResponseMessage checkBalance(PublicKey source, PublicKey owner, PrivateKey sourceAuthKey, ReadType read) throws IllegalStateException, InterruptedException {
         Transaction t = new CheckBalanceTransaction(source, owner, read);
-        //t.authenticateTransaction(nonce++, sourceAuthKey);  // FIXME: checkbalance transaction must not be in the blockchain's blocks
-        t.authenticateTransaction(nonce, sourceAuthKey);  // FIXME: checkbalance transaction must not be in the blockchain's blocks
-        ClientRequestMessage request = new ClientRequestMessage(t);
-
-        BestEffortBroadcast broadcastChannel = new BestEffortBroadcast(channel, InstanceManager.getAllParticipants());
-        broadcastChannel.broadcast(request);
-
-        // FIXME: deliver response and check if all signatures are correct
-        return new CheckBalanceResponseMessage(ClientResponseMessage.Status.REJECTED, -1, Double.MAX_VALUE); // money !!!!!
+        t.authenticateTransaction(nonce++, sourceAuthKey);
+        //t.authenticateTransaction(nonce, sourceAuthKey);
+        return waitForNServerResponses(t, read == ReadType.WEAKLY_CONSISTENT ? 1 : InstanceManager.getNumberOfByzantines() + 1);
     }
 
     private ClientResponseMessage appendTransaction(Transaction transaction) throws IllegalStateException, InterruptedException {
+        return waitForNServerResponses(transaction, InstanceManager.getNumberOfByzantines() + 1);
+    }
+
+    private ClientResponseMessage waitForNServerResponses(Transaction transaction, int nResponses) throws IllegalStateException, InterruptedException {
         // Protecting against client multithread
-        synchronized(this) {
+        synchronized (this) {
             List<Integer> sendersId = new ArrayList<>();
             Map<SimpleImmutableEntry<ClientResponseMessage.Status, Integer>, Integer> responsesCount = new HashMap<>();
 
@@ -74,7 +71,7 @@ public class TESClientAPI extends HDLProcess {
             BestEffortBroadcast broadcastChannel = new BestEffortBroadcast(channel, InstanceManager.getAllParticipants());
             broadcastChannel.broadcast(request);
 
-            // Waiting until get f+1 responses
+            // Waiting until we get f+1 responses
             while (true) {
                 LinkMessage response = null;
                 try {
@@ -87,9 +84,13 @@ public class TESClientAPI extends HDLProcess {
                     sendersId.contains(response.getSender().getID()))
                     continue; // Ignoring response
 
-                sendersId.add(response.getSender().getID());
 
                 ClientResponseMessage message = (ClientResponseMessage) response.getMessage();
+
+                // Ignore if it's not response for our transaction
+                if (message.getNonce() != transaction.getNonce()) continue;
+
+                sendersId.add(response.getSender().getID());
 
                 SimpleImmutableEntry<ClientResponseMessage.Status, Integer> entry = new SimpleImmutableEntry<>(message.getStatus(), message.getTimestamp());
                 responsesCount.putIfAbsent(entry, 0);
@@ -98,9 +99,9 @@ public class TESClientAPI extends HDLProcess {
 
                 responsesCount.put(entry, count);
 
-                System.out.printf("API CLIENT %d received %s (responses number %d)%n", this._id, response, count);
+                System.out.printf("API CLIENT %d received %s for transaction %s (responses number %d / %d)%n", this._id, response, transaction.toString(), count, nResponses);
 
-                if (count == InstanceManager.getNumberOfByzantines() + 1)
+                if (count == nResponses)
                     return message;
             }
         }

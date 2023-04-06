@@ -24,19 +24,19 @@ public abstract class Transaction {
 
     private PublicKey _source;
 
-    private int _nonce;
+    private Integer _nonce;
     private String _challenge;  // POW hash
 
     private void setSource(PublicKey key) { _source = key; }
     private void setOperation(TESOperation op) { _operation = op; }
-    private void setNonce(int nonce) { _nonce = nonce; }
+    private void setNonce(Integer nonce) { _nonce = nonce; }
     private void setChallenge(String challenge) { _challenge = challenge; }
 
     public PublicKey getSource() { return _source; }
     public String getSourceBase64() { return KeyHandler.KeyBase64(_source); }
     public String getSourceBase64Readable() { return KeyHandler.KeyBase64Readable(_source); }
     public TESOperation getOperation() { return _operation; }
-    public int getNonce() { return _nonce; }
+    public Integer getNonce() { return _nonce; }
     protected String getChallenge() { return _challenge; }
 
 

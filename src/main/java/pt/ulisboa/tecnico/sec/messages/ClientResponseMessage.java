@@ -15,15 +15,17 @@ public class ClientResponseMessage extends Message {
 
     private Status status;
     private Integer timestamp;
+    private Integer nonce;
 
     public ClientResponseMessage() {
         super(MessageType.CLIENT_RESPONSE);
     }
 
-    public ClientResponseMessage(Status status, Integer timestamp) {
+    public ClientResponseMessage(Status status, Integer timestamp, Integer nonce) {
         super(MessageType.CLIENT_RESPONSE);
         this.status = status;
         this.timestamp = timestamp;
+        this.nonce = nonce;
     }
 
     public Status getStatus() {
@@ -31,7 +33,11 @@ public class ClientResponseMessage extends Message {
     }
 
     public Integer getTimestamp() {
-        return timestamp;
+        return this.timestamp;
+    }
+
+    public Integer getNonce() {
+        return this.nonce;
     }
 
     public byte[] getDataBytes() throws IOException {
@@ -41,6 +47,7 @@ public class ClientResponseMessage extends Message {
         dos.writeInt(Message.MessageType.CLIENT_RESPONSE.ordinal());
         dos.writeInt(status.ordinal());
         dos.writeInt(timestamp);
+        dos.writeInt(nonce);
 
         return baos.toByteArray();
     }
@@ -60,6 +67,7 @@ public class ClientResponseMessage extends Message {
     public ClientResponseMessage fromDataInputStream(DataInputStream dis) throws IOException {
         this.status = Status.values()[dis.readInt()];
         this.timestamp = dis.readInt();
+        this.nonce = dis.readInt();
 
         return this;
     }

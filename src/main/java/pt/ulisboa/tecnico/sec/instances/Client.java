@@ -56,6 +56,7 @@ public class Client {
 			ClientResponseMessage response = null;
 
 			try {
+				System.out.printf("Client %d: Executing command '%s'%n", this.id, command);
 				response = command.applyCommand();
 			} catch (IllegalStateException | InterruptedException e) {
 				System.err.println("[ERROR] Client %d: Something was wrong executing " + command);

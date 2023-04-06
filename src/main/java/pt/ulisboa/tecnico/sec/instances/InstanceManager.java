@@ -19,6 +19,7 @@ import pt.ulisboa.tecnico.sec.instances.commands.CheckBalanceCommand;
 import pt.ulisboa.tecnico.sec.instances.commands.TransferCommand;
 import pt.ulisboa.tecnico.sec.instances.commands.InvalidCommandException;
 import pt.ulisboa.tecnico.sec.tes.TESAccount;
+import pt.ulisboa.tecnico.sec.tes.transactions.CheckBalanceTransaction.ReadType;
 import pt.ulisboa.tecnico.sec.utils.Logger;
 
 public class InstanceManager {
@@ -298,13 +299,14 @@ public class InstanceManager {
     }
 
     private static void addCheckBalanceTransaction(List<Client> clients, String line) throws NumberFormatException, InvalidCommandException {
-        if (!checkLineFormat(line, "T B [0-9]+ [0-9]+")) {
+        if (!checkLineFormat(line, "T B [0-9]+ [0-9]+ [WS]")) {
             throw new InvalidCommandException(line, "Check Balance Transaction");
         }
 
         String[] args = line.split(" ");
         int senderID = Integer.valueOf(args[2]);
         int ownerID = Integer.valueOf(args[3]);
+        String readConsistency = args[4];
 
         Client sender = clients.stream().filter((c) -> c.getID() == senderID).findAny().orElse(null);
         Client owner = clients.stream().filter((c) -> c.getID() == ownerID).findAny().orElse(null);
@@ -315,11 +317,11 @@ public class InstanceManager {
             throw new InvalidCommandException("Owner has id '" + ownerID + "', but no client with that id exists!");
         }
 
-        sender.addCommand(new CheckBalanceCommand(sender, owner));
+        sender.addCommand(new CheckBalanceCommand(sender, owner, readConsistency.equals("W") ? ReadType.WEAKLY_CONSISTENT : ReadType.STRONGLY_CONSISTENT));
     }
 
     private static void addTransaction(List<Client> clients, String line) throws NumberFormatException, InvalidCommandException {
-        if (!checkLineFormat(line, "T [CTB] [0-9]+( [0-9]+){0,2}")) {
+        if (!checkLineFormat(line, "T [CTB] [0-9]+( [0-9]+){0,2}( [WS])?")) {
             throw new InvalidCommandException(line, "Add Transaction");
         }
 

@@ -14,6 +14,7 @@ public class SignedTESAccount {
     private PublicKey owner;
     private double tucs;
     private String signature;
+    private PublicKey signer;
 
     public SignedTESAccount() {}
 
@@ -23,17 +24,23 @@ public class SignedTESAccount {
     }
 
     public PublicKey getOwner() { return owner; }
+    public PublicKey getSigner() { return signer; }
     public double getBalance() { return tucs; }
 
-    public void authenticateState(PrivateKey key) {
+    public void authenticateState(PublicKey signer, PrivateKey key) throws IllegalStateException {
         try {
+            this.signer = signer;
             this.signature = AuthenticationHandler.signBytes(key, this.getDataBytes());
         } catch (IllegalStateException | IOException e) {
             throw new IllegalStateException(String.format("[ERROR] Authenticating Account State %s with %s", this, key));
         }
     }
 
-    public boolean validateState(PublicKey key) {
+    public boolean validateState() {
+        return validateState(this.signer);
+    }
+
+    public boolean validateState(PublicKey key) throws IllegalStateException {
         boolean valid = false;
         try {
             valid = AuthenticationHandler.checkSignature(key, signature, this.getDataBytes());
@@ -49,9 +56,13 @@ public class SignedTESAccount {
 
         dos.writeDouble(tucs);
         
-        byte[] keyBytes = owner.getEncoded();
-        dos.writeInt(keyBytes.length);
-        dos.write(keyBytes);
+        byte[] ownerKey = owner.getEncoded();
+        dos.writeInt(ownerKey.length);
+        dos.write(ownerKey);
+
+        byte[] signerKey = signer.getEncoded();
+        dos.writeInt(signerKey.length);
+        dos.write(signerKey);
 
         return baos.toByteArray();
     }
@@ -69,11 +80,19 @@ public class SignedTESAccount {
     public SignedTESAccount fromDataInputStream(DataInputStream dis) throws IOException {
         this.tucs = dis.readDouble();
 
-        byte[] keyBytes = new byte[dis.readInt()];
-        dis.readFully(keyBytes);
+        // byte[] ownerKey = new byte[dis.readInt()];
+        // dis.readFully(ownerKey);
+        int count = dis.readInt();
+        byte[] ownerKey = dis.readNBytes(count);
+
+        // byte[] signerKey = new byte[dis.readInt()];
+        // dis.readFully(signerKey);
+        count = dis.readInt();
+        byte[] signerKey = dis.readNBytes(count);
 
         try {
-            this.owner = KeyHandler.deserializePublicKey(keyBytes);
+            this.owner = KeyHandler.deserializePublicKey(ownerKey);
+            this.signer = KeyHandler.deserializePublicKey(signerKey);
 
         } catch (IllegalStateException ile) {
             throw new IllegalStateException("[ERROR] Deserializing transaction source key");
