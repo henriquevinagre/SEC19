@@ -23,7 +23,6 @@ import pt.ulisboa.tecnico.sec.messages.CheckBalanceResponseMessage;
 import pt.ulisboa.tecnico.sec.messages.ClientRequestMessage;
 import pt.ulisboa.tecnico.sec.messages.ClientResponseMessage;
 import pt.ulisboa.tecnico.sec.messages.LinkMessage;
-import pt.ulisboa.tecnico.sec.messages.Message;
 import pt.ulisboa.tecnico.sec.messages.PropagateChangesMessage;
 import pt.ulisboa.tecnico.sec.tes.SignedTESAccount;
 import pt.ulisboa.tecnico.sec.tes.TESAccount;
@@ -408,7 +407,7 @@ public class Server extends HDLProcess {
 		PropagateChangesMessage message = new PropagateChangesMessage(timestamp);
 
 		for (PublicKey key : updatedAccounts) {
-			TESAccount account = tesState.getAccount(key);
+			TESAccount account = tesState.getAccount(key);	// FIXME: Maybe store state as snapshots to get state from 'timestamp'
 			SignedTESAccount accountState = new SignedTESAccount(account);
 			accountState.authenticateState(this.getPublicKey(), this.getPrivateKey());
 			message.addAccount(accountState);

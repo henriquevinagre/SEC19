@@ -14,6 +14,7 @@ import pt.ulisboa.tecnico.sec.broadcasts.BestEffortBroadcast;
 import pt.ulisboa.tecnico.sec.ibft.HDLProcess;
 import pt.ulisboa.tecnico.sec.instances.InstanceManager;
 import pt.ulisboa.tecnico.sec.links.AuthenticatedPerfectLink;
+import pt.ulisboa.tecnico.sec.messages.CheckBalanceResponseMessage;
 import pt.ulisboa.tecnico.sec.messages.ClientRequestMessage;
 import pt.ulisboa.tecnico.sec.messages.ClientResponseMessage;
 import pt.ulisboa.tecnico.sec.messages.LinkMessage;
@@ -38,14 +39,14 @@ public class TESClientAPI extends HDLProcess {
     public ClientResponseMessage createAccount(PublicKey source, PrivateKey sourceAuthKey) throws IllegalStateException, InterruptedException {
         Transaction t = new CreateAccountTransaction(source);
         t.authenticateTransaction(nonce++, sourceAuthKey);
-        //t.authenticateTransaction(nonce, sourceAuthKey);
+
         return this.appendTransaction(t);
     }
 
     public ClientResponseMessage transfer(PublicKey source, PublicKey destination, double amount, PrivateKey sourceAuthKey) throws IllegalStateException, InterruptedException {
         Transaction t = new TransferTransaction(source, destination, amount);
-        t.authenticateTransaction(nonce++, sourceAuthKey);  // FIXME: nonces
-        //t.authenticateTransaction(nonce, sourceAuthKey);  // FIXME: nonces
+        t.authenticateTransaction(nonce++, sourceAuthKey);
+
         return this.appendTransaction(t);
     }
 
@@ -53,8 +54,19 @@ public class TESClientAPI extends HDLProcess {
     public ClientResponseMessage checkBalance(PublicKey source, PublicKey owner, PrivateKey sourceAuthKey, ReadType read) throws IllegalStateException, InterruptedException {
         Transaction t = new CheckBalanceTransaction(source, owner, read);
         t.authenticateTransaction(nonce++, sourceAuthKey);
-        //t.authenticateTransaction(nonce, sourceAuthKey);
-        return waitForNServerResponses(t, read == ReadType.WEAKLY_CONSISTENT ? 1 : InstanceManager.getNumberOfByzantines() + 1);
+
+        if (read == ReadType.STRONGLY_CONSISTENT)
+            return waitForNServerResponses(t, InstanceManager.getNumberOfByzantines() + 1);
+            
+        // Weakly consistent read
+        CheckBalanceResponseMessage balanceResponse = (CheckBalanceResponseMessage) waitForNServerResponses(t, 1);
+        for (SignedTESAccount acc : balanceResponse.signedTESAccount()) {
+            if (!acc.validateState(acc.getSigner())) {
+                return new ClientResponseMessage(ClientResponseMessage.Status.REJECTED, balanceResponse.getTimestamp(), balanceResponse.getNonce());
+            }
+        }
+    
+        return balanceResponse;
     }
 
     private ClientResponseMessage appendTransaction(Transaction transaction) throws IllegalStateException, InterruptedException {
@@ -85,7 +97,6 @@ public class TESClientAPI extends HDLProcess {
                     continue; // Ignoring response
 
                 ClientResponseMessage message = (ClientResponseMessage) response.getMessage();
-                System.out.printf("Client %d received response %s from %d with nonce %d (mine is %d)%n%n%n%n%n%n%n%n%n%n", this._id, message, response.getSender().getID(), message.getNonce(), transaction.getNonce());
 
                 // Ignore if it's not response for our transaction
                 if (message.getNonce() != transaction.getNonce()) continue;
