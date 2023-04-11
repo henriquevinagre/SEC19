@@ -80,13 +80,9 @@ public class SignedTESAccount {
     public SignedTESAccount fromDataInputStream(DataInputStream dis) throws IOException, IllegalStateException {
         this.tucs = dis.readDouble();
 
-        // byte[] ownerKey = new byte[dis.readInt()];
-        // dis.readFully(ownerKey);
         int count = dis.readInt();
         byte[] ownerKey = dis.readNBytes(count);
 
-        // byte[] signerKey = new byte[dis.readInt()];
-        // dis.readFully(signerKey);
         count = dis.readInt();
         byte[] signerKey = dis.readNBytes(count);
 

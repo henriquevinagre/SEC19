@@ -16,6 +16,7 @@ import pt.ulisboa.tecnico.sec.blockchain.BlockchainNode;
 import pt.ulisboa.tecnico.sec.blockchain.BlockchainState;
 import pt.ulisboa.tecnico.sec.broadcasts.BestEffortBroadcast;
 import pt.ulisboa.tecnico.sec.ibft.HDLProcess;
+import pt.ulisboa.tecnico.sec.ibft.IBFTValueIT;
 import pt.ulisboa.tecnico.sec.links.AuthenticatedPerfectLink;
 import pt.ulisboa.tecnico.sec.links.Channel;
 import pt.ulisboa.tecnico.sec.messages.BFTMessage;
@@ -41,10 +42,11 @@ public class Server extends HDLProcess {
 	private List<SimpleImmutableEntry<Transaction, HDLProcess>> pendingRequests;
 	private BlockchainState blockchainState;
 	private BlockchainNode toPropose;
-	private TESState tesState;
+	private Map<Integer, TESState> tesStates;
 
 	// TES related variables
 	private Consensus<BlockchainNode> consensus;
+	private Consensus<StrongReadIBFTValue> readConsensus;
 	private Object toProposeLock = new Object();
 	private Map<PublicKey, Integer> clientsSeqNum;
 
@@ -58,17 +60,31 @@ public class Server extends HDLProcess {
 		pendingRequests = new ArrayList<>();
 		blockchainState = new BlockchainState();
 		toPropose = new BlockchainNode();
-		tesState = new TESState();
+		tesStates = new HashMap<>();
 		clientsSeqNum = new HashMap<>();
 		snapshots = new HashMap<>();
+
+		tesStates.put(-1, new TESState());
 	}
 
 	protected Channel getChannel() {
 		return this.channel;
 	}
 
-	public TESState getTESState() {
-		return tesState;
+	public TESState getTESState(int timestamp) {
+		return tesStates.getOrDefault(timestamp, null);
+	}
+
+	public Map<Integer, TESState> getTESStates() {
+		return tesStates;
+	}
+
+	public int getLastTimestamp() {
+		return tesStates.entrySet().stream().reduce((a, b) -> b.getKey() > a.getKey() ? b : a).get().getKey();
+	}
+
+	public TESState getLastTESState() {
+		return getTESState(getLastTimestamp());
 	}
 
 	public String getBlockChainState() {
@@ -82,6 +98,7 @@ public class Server extends HDLProcess {
 	public void execute() throws IllegalThreadStateException {
 		ibftBroadcast = new BestEffortBroadcast(channel, InstanceManager.getAllParticipants());
 		consensus = new Consensus<>(this, ibftBroadcast);
+		readConsensus = new Consensus<>(this, ibftBroadcast);
 
 		this.running = true;
 		this.kys = false;
@@ -157,7 +174,7 @@ public class Server extends HDLProcess {
 		this.selfTerminate();
 		channel.close();
 
-		System.out.printf("Server %d %s%n", this.getID(), tesState);
+		System.out.printf("Server %d %s%n", this.getID(), getLastTESState());
 
 		System.out.printf("Server %d closed%n", this.getID());
 	}
@@ -181,31 +198,64 @@ public class Server extends HDLProcess {
 		return true;
 	}
 
+	private void handleBFTMessage(LinkMessage incomingMessage) throws InterruptedException {
+		BFTMessage<?> message = (BFTMessage<?>) incomingMessage.getMessage();
+		if (message.getClazz() == BlockchainNode.class) {
+			handleBFTMessageBlockchain(incomingMessage);
+		} else {
+			handleBFTMessageStrongRead(incomingMessage);
+		}
+	}
+
+	private void handleBFTMessageStrongRead(LinkMessage incomingMessage) throws InterruptedException {
+		BFTMessage<StrongReadIBFTValue> message = readConsensus.handleCommit(incomingMessage);
+		if (message == null) return;
+
+		StrongReadIBFTValue value = message.getValue();
+
+		Integer timestamp = value.getTimestamp();
+		Integer nonce = value.getNonce();
+		PublicKey clientKey = value.getClientKey();
+		HDLProcess client = InstanceManager.getHDLProcess(clientKey);
+
+		// TODO: send to client
+		double tucs = getTESState(timestamp).getAccount(clientKey).getTucs();
+		CheckBalanceResponseMessage response = new CheckBalanceResponseMessage(ClientResponseMessage.Status.OK, timestamp, nonce, tucs);
+		sendClientResponse(client, response);
+	}
+
+	private void handleBFTMessageBlockchain(LinkMessage incomingMessage) throws InterruptedException {
+		BFTMessage<BlockchainNode> message = (BFTMessage<BlockchainNode>) incomingMessage.getMessage();
+		switch (message.getType()) {
+			case PRE_PREPARE:
+				verifyBlockChainNode(message.getValue());
+				this.consensus.handlePrePrepare(incomingMessage);
+				break;
+			case PREPARE:
+				this.consensus.handlePrepare(incomingMessage);
+				break;
+			case COMMIT:
+				BFTMessage<BlockchainNode> commitResult = this.consensus.handleCommit(incomingMessage);
+				if (commitResult != null) {
+					decide(commitResult);
+				}
+				break;
+		}
+	}
+
 	private void handleIncomingMessage(LinkMessage incomingMessage) throws InterruptedException {
 		switch (incomingMessage.getMessage().getMessageType()) {
 			case CLIENT_REQUEST:
 				handleClientRequest(incomingMessage);
+
 				break;
 			case BFT:
-				BFTMessage<BlockchainNode> message = (BFTMessage<BlockchainNode>) incomingMessage.getMessage();
-				switch (message.getType()) {
-					case PRE_PREPARE:
-						verifyBlockChainNode(message.getValue());
-						this.consensus.handlePrePrepare(incomingMessage);
-						break;
-					case PREPARE:
-						this.consensus.handlePrepare(incomingMessage);
-						break;
-					case COMMIT:
-						BFTMessage<BlockchainNode> commitResult = this.consensus.handleCommit(incomingMessage);
-						if (commitResult != null) {
-							decide(commitResult);
-						}
-						break;
-				}
+				handleBFTMessage(incomingMessage);
+
 				break;
 			case PROPAGATE_CHANGES:
 				handleChangesPropagation(incomingMessage);
+
 				break;
 			default:
 				break;
@@ -225,7 +275,6 @@ public class Server extends HDLProcess {
 
 		for (SignedTESAccount state : propagateMessage.getChanges()) {
 			if (state.validateState(senderKey)) {
-				// FIXME: Maybe set not needed since only one state for each account?
 				timestampMap.putIfAbsent(state.getOwner(), new HashSet<>());
 				Set<SignedTESAccount> signedStates = timestampMap.get(state.getOwner());
 				signedStates.add(state);
@@ -308,7 +357,10 @@ public class Server extends HDLProcess {
 				// sendClientResponse(request.getSender(), status, instance, transaction.getNonce());
 			}
 			else {
-				// FIXME: strongly consistent reads
+				int instance = readConsensus.incrementInstance();
+				StrongReadIBFTValue value = new StrongReadIBFTValue(getLastTimestamp(), transaction.getSource(), transaction.getNonce());
+				BFTMessage<StrongReadIBFTValue> commit = new BFTMessage<>(BFTMessage.Type.COMMIT, instance, readConsensus.getRound(), value);
+				ibftBroadcast.broadcast(commit);
 			}
 
 			return;
@@ -342,12 +394,16 @@ public class Server extends HDLProcess {
 
 	private void decide(BFTMessage<BlockchainNode> message) throws InterruptedException {
 		BlockchainNode block = message.getValue();
+		int timestamp = message.getInstance();
+		tesStates.putIfAbsent(timestamp, tesStates.get(timestamp-1).copy());
+		TESState currentState = tesStates.get(timestamp);
+		// we assume that decides are in order (if not: kabooom)
 		List<Transaction> successfulTransactions = new ArrayList<>();
 
 		for (int j = 0; j < block.getTransactions().size(); j++) {
 			Transaction transaction = block.getTransactions().get(j);
 			// Perform transaction (in a whole)
-			boolean successfulTransaction = transaction.updateTESState(tesState);
+			boolean successfulTransaction = transaction.updateTESState(currentState);
 
 			if (successfulTransaction) successfulTransactions.add(transaction);
 
@@ -380,7 +436,7 @@ public class Server extends HDLProcess {
 		}
 
 		for (Transaction t : block.getRewards()) {
-			if (t.updateTESState(tesState))
+			if (t.updateTESState(currentState))
 				successfulTransactions.add(t);
 			
 			// FIXME: maybe just add balance to leader's account?
@@ -407,14 +463,13 @@ public class Server extends HDLProcess {
 		PropagateChangesMessage message = new PropagateChangesMessage(timestamp);
 
 		for (PublicKey key : updatedAccounts) {
-			TESAccount account = tesState.getAccount(key);	// FIXME: Maybe store state as snapshots to get state from 'timestamp'
+			TESAccount account = tesStates.get(timestamp).getAccount(key);	// FIXME: Maybe store state as snapshots to get state from 'timestamp'
 			SignedTESAccount accountState = new SignedTESAccount(account);
 			accountState.authenticateState(this.getPublicKey(), this.getPrivateKey());
 			message.addAccount(accountState);
 		}
 
 		ibftBroadcast.broadcast(message);
-
 	}
 
 	public void kill() {

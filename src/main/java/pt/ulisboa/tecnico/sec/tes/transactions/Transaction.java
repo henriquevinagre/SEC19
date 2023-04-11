@@ -64,7 +64,7 @@ public abstract class Transaction {
         Transaction transaction;
 
         TESOperation operation = TESOperation.values()[dis.readInt()];
-        
+
         switch (operation) {
             case CREATE_ACCOUNT:
                 transaction = CreateAccountTransaction.fromDataInputStream(dis); break;

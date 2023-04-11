@@ -31,6 +31,18 @@ public class Consensus<T extends IBFTValueIT> {
 		this.commitCount = new HashMap<>();
 	}
 
+	public Integer getInstance() {
+		return this.instance;
+	}
+
+	public Integer incrementInstance() {
+		return ++this.instance;
+	}
+
+	public Integer getRound() {
+		return this.round;
+	}
+
 	// Start IBFT protocol if this process is the leader
 	public void startConsensus(T value) throws InterruptedException {
 		int currentInstance = 0;

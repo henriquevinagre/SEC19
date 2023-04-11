@@ -3,13 +3,15 @@ package pt.ulisboa.tecnico.sec.messages;
 import java.io.ByteArrayInputStream;
 import java.io.DataInputStream;
 import java.io.IOException;
+import java.lang.reflect.Constructor;
+import java.lang.reflect.Type;
 import java.security.PrivateKey;
 import java.security.PublicKey;
 
 import javax.crypto.SecretKey;
 
-import pt.ulisboa.tecnico.sec.blockchain.BlockchainNode;
 import pt.ulisboa.tecnico.sec.crypto.AuthenticationHandler;
+import pt.ulisboa.tecnico.sec.ibft.IBFTValueIT;
 
 public abstract class Message {
     
@@ -63,10 +65,20 @@ public abstract class Message {
 
         // spaghetti code because java doesn't allow abstract static methods lol
         MessageType messageType = MessageType.values()[dis.readInt()];
-        Message message;
+        Message message = null;
         switch (messageType) {
             case BFT:
-                message = new BFTMessage<BlockchainNode>(BlockchainNode.class).fromDataInputStream(dis);
+                String className = dis.readUTF();
+                try {
+                    Class<? extends IBFTValueIT> valueSubclass = Class.forName(className).asSubclass(IBFTValueIT.class);
+                    
+                    message = new BFTMessage<>(valueSubclass).fromDataInputStream(dis);
+                } catch (Exception e) {
+                    e.printStackTrace(System.out);
+                    System.out.println("REBENTOU A OBTER CLASSE/CHAMAR METODO :(");
+                    
+                }
+
                 break;
             case CLIENT_REQUEST:
                 message = new ClientRequestMessage().fromDataInputStream(dis);

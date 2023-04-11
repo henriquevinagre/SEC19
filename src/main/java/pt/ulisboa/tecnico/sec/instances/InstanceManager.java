@@ -6,6 +6,7 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.io.PrintStream;
 import java.net.UnknownHostException;
+import java.security.PublicKey;
 import java.util.stream.Collectors;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -69,6 +70,10 @@ public class InstanceManager {
         return _systemsProcesses.stream().filter(p -> p.getID() == id).findAny().orElse(null);
     }
 
+    public static HDLProcess getHDLProcess(PublicKey key) {
+        return _systemsProcesses.stream().filter(p -> p.getPublicKey().equals(key)).findAny().orElse(null);
+    }
+
     public static List<HDLProcess> getSystemProcesses() {
         return _systemsProcesses;
     }
@@ -112,7 +117,7 @@ public class InstanceManager {
 
         for (Server s1 : _servers) {
             for (Server s2 : _servers) {
-                s1.getTESState().addAccount(new TESAccount(s2.getPublicKey()));
+                s1.getTESState(-1).addAccount(new TESAccount(s2.getPublicKey()));
             }
         }
 

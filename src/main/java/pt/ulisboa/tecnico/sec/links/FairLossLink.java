@@ -72,6 +72,10 @@ public class FairLossLink extends Channel {
             System.err.printf("[%s] FLL: Receiving packet from %s:%d with %d bytes%n", this.owner,
                     packet.getAddress().getHostAddress(), packet.getPort(), packet.getLength());
 
+            if (packet.getLength() <= 0) {
+                throw new IllegalStateException();
+            }
+
             // Serializes message
             message = LinkMessage.fromDatagramPacket(packet, this.owner);
         } catch (SocketTimeoutException e) {

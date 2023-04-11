@@ -41,24 +41,8 @@ public class CheckBalanceTransaction extends Transaction {
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         DataOutputStream dos = new DataOutputStream(baos);
 
-        // serialize operation
-        dos.writeInt(super.getOperation().ordinal());
+        dos.write(getDataBytes());
 
-        // serialize read type
-        dos.writeInt(this.getReadType().ordinal());
-
-        // serialize owner key
-        byte[] ownerBytes = this.getOwner().getEncoded();
-        dos.writeInt(ownerBytes.length);
-        dos.write(ownerBytes);
-
-        // serialize source key
-        byte[] sourceBytes = super.getSource().getEncoded();
-        dos.writeInt(sourceBytes.length);
-        dos.write(sourceBytes);
-        
-        // serialize nonce and challenge
-        dos.writeInt(super.getNonce());
         String challenge = super.getChallenge();
         dos.writeUTF(challenge);
 

@@ -12,15 +12,30 @@ import pt.ulisboa.tecnico.sec.tes.SignedTESAccount;
 public class CheckBalanceResponseMessage extends ClientResponseMessage {
 
     private Set<SignedTESAccount> signedTESAccount;
+    private double tucs;
 
     public CheckBalanceResponseMessage() {
         super(ResponseType.CHECK_BALANCE);
         this.signedTESAccount = new HashSet<>();
+        this.tucs = -1;
     }
 
     public CheckBalanceResponseMessage(Status status, Integer timestamp, Integer nonce, Set<SignedTESAccount> states) {
         super(ResponseType.CHECK_BALANCE, status, timestamp, nonce);
         this.signedTESAccount = states;
+        this.tucs = -1;
+    }
+
+    public CheckBalanceResponseMessage(Status status, Integer timestamp, Integer nonce, double tucs) {
+        super(ResponseType.CHECK_BALANCE, status, timestamp, nonce);
+        this.signedTESAccount = new HashSet<>();
+        this.tucs = tucs;
+    }
+
+    public CheckBalanceResponseMessage(Status status, Integer timestamp, Integer nonce, Set<SignedTESAccount> states, double tucs) {
+        super(ResponseType.CHECK_BALANCE, status, timestamp, nonce);
+        this.signedTESAccount = states;
+        this.tucs = tucs;
     }
 
     public Set<SignedTESAccount> signedTESAccount() {
@@ -46,6 +61,8 @@ public class CheckBalanceResponseMessage extends ClientResponseMessage {
             SignedTESAccount account = new SignedTESAccount().fromDataInputStream(dis);
             this.signedTESAccount.add(account);
         }
+        this.tucs = dis.readDouble();
+
         return this;
     }
 
@@ -61,6 +78,8 @@ public class CheckBalanceResponseMessage extends ClientResponseMessage {
             //dos.writeInt(accountBytes.length);
             dos.write(accountBytes);
         }
+
+        dos.writeDouble(tucs);
         
         return baos.toByteArray();
     }

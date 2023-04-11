@@ -45,6 +45,14 @@ public class TESAccount {
         return _tucs = tucs;
     }
 
+    public TESAccount copy() {
+        TESAccount newAccount = new TESAccount(this._id);
+
+        newAccount.setBalance(this._tucs);
+
+        return newAccount;
+    }
+
     @Override
     public String toString() {
         return String.format("Account<" + this.getIDB64Readable() + ", %f>", this.getTucs());
