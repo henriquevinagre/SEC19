@@ -3,8 +3,6 @@ package pt.ulisboa.tecnico.sec.messages;
 import java.io.ByteArrayInputStream;
 import java.io.DataInputStream;
 import java.io.IOException;
-import java.lang.reflect.Constructor;
-import java.lang.reflect.Type;
 import java.security.PrivateKey;
 import java.security.PublicKey;
 

@@ -19,9 +19,9 @@ S 4 8003
 C 5
 C 6
 T C 5
+T C 6
 T T 6 5 2
 T B 6 5 W
 T B 6 5 S
 T T 5 6 2
-T C 6
 T B 5 5 W

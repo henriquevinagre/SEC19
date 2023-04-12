@@ -78,7 +78,6 @@ public class BFTMessage<T extends IBFTValueIT> extends Message {
 
         dos.writeInt(Message.MessageType.BFT.ordinal());
 
-        System.out.printf("toByteArray clazz: '%s', type: '%s', value: '%s'%n", clazz, type, value);
         dos.writeUTF(clazz.getName());
 
         dos.writeInt(type.ordinal());
@@ -106,7 +105,6 @@ public class BFTMessage<T extends IBFTValueIT> extends Message {
 
         dos.writeInt(Message.MessageType.BFT.ordinal());
 
-        System.out.printf("getDataBytes clazz: '%s', type: '%s', value: '%s'%n", clazz, type, value);
         dos.writeUTF(clazz.getName());
 
         dos.writeInt(type.ordinal());

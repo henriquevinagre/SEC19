@@ -35,7 +35,7 @@ public class Consensus<T extends IBFTValueIT> {
 		return this.instance;
 	}
 
-	public Integer incrementInstance() {
+	public synchronized Integer incrementInstance() {
 		return ++this.instance;
 	}
 
@@ -55,7 +55,7 @@ public class Consensus<T extends IBFTValueIT> {
 			BFTMessage<T> pre_prepare = new BFTMessage<>(BFTMessage.Type.PRE_PREPARE, currentInstance, round, value);
 			pre_prepare.signMessage(process.getPrivateKey());
 			// Broadcasts PRE_PREPARE
-			ibftBroadcast.broadcast(pre_prepare); // FIXME: HMAC & SIGNATURES ???
+			ibftBroadcast.broadcast(pre_prepare);
 		}
 	}
 
@@ -121,6 +121,9 @@ public class Consensus<T extends IBFTValueIT> {
 			commitCount.get(message).add(commit.getSender().getID());
 			count = commitCount.get(message).size();
 		}
+
+		if (message.getClazz() == StrongReadIBFTValue.class)
+			System.out.println("!!!! Server " + process.getID() + " Commit count for StrongRead is " + count);
 
 		// Reaching a quorum of COMMIT messages (given by different servers)
 		if (count == InstanceManager.getQuorum()) {

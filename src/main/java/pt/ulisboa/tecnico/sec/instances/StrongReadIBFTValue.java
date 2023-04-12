@@ -74,5 +74,31 @@ public class StrongReadIBFTValue implements IBFTValueIT {
 
         return this;
     }
+    
+    @Override
+    public String toString() {
+        return String.format("(StrongReadIBFTValue: timestamp = %d, key = %s, nonce = %d)", timestamp, KeyHandler.KeyBase64Readable(clientKey), clientNonce);
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (!(obj instanceof StrongReadIBFTValue)) return false;
+        StrongReadIBFTValue sriv = (StrongReadIBFTValue) obj;
+
+        return sriv.getTimestamp() == this.getTimestamp() &&
+                sriv.getNonce() == this.getNonce() &&
+                sriv.getClientKey().equals(this.getClientKey());
+    }
+
+    @Override
+    public int hashCode() {
+        int result = 17;
+
+        result = 31 * result + timestamp.hashCode();
+        result = 31 * result + clientKey.hashCode();
+        result = 31 * result + clientNonce.hashCode();
+
+        return result;
+    }
 
 }

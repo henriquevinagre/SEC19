@@ -132,6 +132,6 @@ public class CheckBalanceTransaction extends Transaction {
 
     @Override
     public String toString() {
-        return String.format("{op: CHECK_BALANCE, owner: %s}", getOwnerBase64Readable());
+        return String.format("{op: CHECK_BALANCE:%s, owner: %s}", getReadType(), getOwnerBase64Readable());
     }
 }

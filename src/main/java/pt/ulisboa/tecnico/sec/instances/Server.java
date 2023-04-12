@@ -16,7 +16,6 @@ import pt.ulisboa.tecnico.sec.blockchain.BlockchainNode;
 import pt.ulisboa.tecnico.sec.blockchain.BlockchainState;
 import pt.ulisboa.tecnico.sec.broadcasts.BestEffortBroadcast;
 import pt.ulisboa.tecnico.sec.ibft.HDLProcess;
-import pt.ulisboa.tecnico.sec.ibft.IBFTValueIT;
 import pt.ulisboa.tecnico.sec.links.AuthenticatedPerfectLink;
 import pt.ulisboa.tecnico.sec.links.Channel;
 import pt.ulisboa.tecnico.sec.messages.BFTMessage;
@@ -207,9 +206,11 @@ public class Server extends HDLProcess {
 		}
 	}
 
-	private void handleBFTMessageStrongRead(LinkMessage incomingMessage) throws InterruptedException {
+	private void handleBFTMessageStrongRead(LinkMessage incomingMessage) throws InterruptedException, IllegalStateException {
 		BFTMessage<StrongReadIBFTValue> message = readConsensus.handleCommit(incomingMessage);
 		if (message == null) return;
+
+		System.out.println("Server " + this.getID() + " returning strong read to client.");
 
 		StrongReadIBFTValue value = message.getValue();
 
@@ -218,9 +219,23 @@ public class Server extends HDLProcess {
 		PublicKey clientKey = value.getClientKey();
 		HDLProcess client = InstanceManager.getHDLProcess(clientKey);
 
+		if (client == null) return;
+
 		// TODO: send to client
-		double tucs = getTESState(timestamp).getAccount(clientKey).getTucs();
+		TESState state = getTESState(timestamp);
+		if (state == null) return;
+
+		TESAccount account = state.getAccount(clientKey);
+		if (account == null) {
+			// Client doesn't have an account yet :(
+			sendClientResponse(client, ClientResponseMessage.Status.NOT_FOUND, timestamp, nonce);
+			return;
+		}
+
+		double tucs = account.getTucs();
+
 		CheckBalanceResponseMessage response = new CheckBalanceResponseMessage(ClientResponseMessage.Status.OK, timestamp, nonce, tucs);
+		System.out.printf("Server %d sending strong read response (%s) to client %d%n", this.getID(), response, client.getID());
 		sendClientResponse(client, response);
 	}
 
@@ -348,6 +363,9 @@ public class Server extends HDLProcess {
 				Set<SignedTESAccount> signedStates = weaklyConsistentRead(readTransaction.getOwner());
 				ClientResponseMessage.Status status = ClientResponseMessage.Status.NOT_FOUND;
 				int instance = -1;
+
+				System.out.printf("Server %d handling weak reads for client %s%n", this._id, request.getSender());
+
 				if (!signedStates.isEmpty()) {
 					status = ClientResponseMessage.Status.OK;
 					instance = 0;
@@ -357,9 +375,12 @@ public class Server extends HDLProcess {
 				// sendClientResponse(request.getSender(), status, instance, transaction.getNonce());
 			}
 			else {
+				System.out.printf("Server %d handling strong reads for client %s%n", this._id, request.getSender());
 				int instance = readConsensus.incrementInstance();
 				StrongReadIBFTValue value = new StrongReadIBFTValue(getLastTimestamp(), transaction.getSource(), transaction.getNonce());
 				BFTMessage<StrongReadIBFTValue> commit = new BFTMessage<>(BFTMessage.Type.COMMIT, instance, readConsensus.getRound(), value);
+				
+				System.out.printf("Server %d broadcasting BFT message with strong read value %s%n", this._id, commit.getValue());
 				ibftBroadcast.broadcast(commit);
 			}
 
@@ -463,7 +484,7 @@ public class Server extends HDLProcess {
 		PropagateChangesMessage message = new PropagateChangesMessage(timestamp);
 
 		for (PublicKey key : updatedAccounts) {
-			TESAccount account = tesStates.get(timestamp).getAccount(key);	// FIXME: Maybe store state as snapshots to get state from 'timestamp'
+			TESAccount account = tesStates.get(timestamp).getAccount(key);
 			SignedTESAccount accountState = new SignedTESAccount(account);
 			accountState.authenticateState(this.getPublicKey(), this.getPrivateKey());
 			message.addAccount(accountState);
