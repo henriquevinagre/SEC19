@@ -33,7 +33,10 @@ import pt.ulisboa.tecnico.sec.tes.transactions.TransferTransaction;
 
 
 @SuppressWarnings("unchecked")
-public class Server extends HDLProcess {
+public class Server extends ByzantineProcess {
+    // FLAG FOR BYZANTINE BEHAVIOUR
+    private boolean isByzantine = false;
+
 	private boolean running = false;
 	private boolean kys = true;
 	private Channel channel;
@@ -53,6 +56,11 @@ public class Server extends HDLProcess {
 	// This collection is a set so that no attacker can send multiple of the same state.
 	private Map<Integer, Map<PublicKey, Set<SignedTESAccount>>> snapshots;
 
+    public Server(int id, int port, boolean isByzantine) throws UnknownHostException {
+        this(id, port);
+        this.isByzantine = isByzantine;
+    }
+
 	public Server(int id, int port) throws UnknownHostException {
 		super(id, port);
 		channel = new AuthenticatedPerfectLink(this);
@@ -65,6 +73,19 @@ public class Server extends HDLProcess {
 
 		tesStates.put(-1, new TESState());
 	}
+
+    public boolean isByzantine() {
+        return this.isByzantine;
+    }
+
+    public void setByzantine() {
+        System.out.printf("[%d] --------- I'm BYZANTINE WOOOOOOOO%n", this._id);
+        setByzantine(true);
+    }
+
+    public void setByzantine(boolean isByzantine) {
+        this.isByzantine = isByzantine;
+    }
 
 	protected Channel getChannel() {
 		return this.channel;
@@ -94,10 +115,18 @@ public class Server extends HDLProcess {
         return blockchainState.getRaw();
     }
 
+    public void executeByzantineBehaviour(ByzantineBehaviour behaviour) {
+        stopByzantineBehaviour();
+        running = false;
+        System.out.printf("[%d] --------- Im no longer byzantine :((((  ( i still am, just quitting because i'm cool :sunglasses: )%n", this._id);
+    }
+
 	public void execute() throws IllegalThreadStateException {
 		ibftBroadcast = new BestEffortBroadcast(channel, InstanceManager.getAllParticipants());
 		consensus = new Consensus<>(this, ibftBroadcast);
 		readConsensus = new Consensus<>(this, ibftBroadcast);
+
+        if (isByzantine) startByzantineBehaviour();
 
 		this.running = true;
 		this.kys = false;

@@ -1,4 +1,4 @@
-1
+2
 # ^ (F) byzantine servers to be supported
 
 ## DOCS
@@ -14,6 +14,9 @@ S 1 8000
 S 2 8001
 S 3 8002
 S 4 8003
+S 7 8004
+S 8 8005
+S 9 8006
 
 # Clients
 C 5

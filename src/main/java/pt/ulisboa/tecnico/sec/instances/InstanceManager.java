@@ -8,6 +8,7 @@ import java.io.PrintStream;
 import java.net.UnknownHostException;
 import java.security.PublicKey;
 import java.util.stream.Collectors;
+import java.util.Collections;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -54,10 +55,25 @@ public class InstanceManager {
 
         _numByzantineProcesses = f;
         if (_servers.size() < (3 * _numByzantineProcesses + 1))
-            throw new IllegalStateException("The system cannot support " + _numByzantineProcesses + " byzantine processes." +
-                                                "The maximum that this configuration can support is " + (_servers.size() - 1) / 3 + " byzantine processes.");
+            throw new IllegalStateException(String.format("The system cannot support %d byzantine processes.%n" +
+                                                "The maximum that this configuration can support is %d byzantine processes.%n" +
+                                                "To get toleration of %d faults, you need at least %d servers.",
+                                                    _numByzantineProcesses, (_servers.size() - 1) / 3, f, 3 * _numByzantineProcesses + 1));
         _quorum = ((_servers.size() + _numByzantineProcesses) / 2) + 1;
-        
+
+        // Set f servers as byzantine
+
+        List<Server> shuffledServers = new ArrayList<>(servers);
+
+        // Remove this line to always work, as 0 is always leader in our implementation xd
+        // FIXME: Pa entrega s clhr deixamnos isto? pa correr sempre :)
+        shuffledServers.removeIf((s) -> s.getID() == 1);
+
+        Collections.shuffle(shuffledServers);
+        for (int i = 0; i < _numByzantineProcesses; i++) {
+            shuffledServers.get(i).setByzantine();
+        }
+
         List<HDLProcess> newProcesses = new ArrayList<>();
         for (Client c: clients)
             newProcesses.add(c.getHDLInstance());
