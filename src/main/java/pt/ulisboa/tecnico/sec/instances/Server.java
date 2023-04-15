@@ -34,6 +34,8 @@ import pt.ulisboa.tecnico.sec.tes.transactions.TransferTransaction;
 
 @SuppressWarnings("unchecked")
 public class Server extends ByzantineProcess {
+	private static final Integer SNAPSHOT_BLOCK_SIZE = 3;
+
     // FLAG FOR BYZANTINE BEHAVIOUR
     private boolean isByzantine = false;
 
@@ -51,6 +53,8 @@ public class Server extends ByzantineProcess {
 	private Consensus<StrongReadIBFTValue> readConsensus;
 	private Object toProposeLock = new Object();
 	private Map<PublicKey, Integer> clientsSeqNum;
+	private Integer snapshotCounter = 0;
+	private List<Transaction> snapshotTransaction;
 
 	// For each block, keep a collection of signed states for each account.
 	// This collection is a set so that no attacker can send multiple of the same state.
@@ -70,6 +74,7 @@ public class Server extends ByzantineProcess {
 		tesStates = new HashMap<>();
 		clientsSeqNum = new HashMap<>();
 		snapshots = new HashMap<>();
+		snapshotTransaction = new ArrayList<>();
 
 		tesStates.put(-1, new TESState());
 	}
@@ -177,7 +182,7 @@ public class Server extends ByzantineProcess {
 			try {
 				t.interrupt();
 			} catch (Exception e) {
-				System.out.println(e);
+				System.err.println(e);
 			}
 
 			try {
@@ -186,23 +191,24 @@ public class Server extends ByzantineProcess {
 				t.join(ms, ns);
 
 				if (t.isAlive()) {
-					System.out.println("Thread still alive even after waiting for " + ms / 1000 + ns / 1000000000 + " seconds...");
+					System.err.println("Thread still alive even after waiting for " + ms / 1000 + ns / 1000000000 + " seconds...");
 
-					System.out.println("/--- START OF STACK TRACE OF " + t.getId() + " ---\\");
+					System.err.println("/--- START OF STACK TRACE OF " + t.getId() + " ---\\");
 					for (StackTraceElement ste : t.getStackTrace()) {
-						System.out.println(ste);
+						System.err.println(ste);
 					}
-					System.out.println("\\--- END OF STACK TRACE OF " + t.getId() + " ---/");
+					System.err.println("\\--- END OF STACK TRACE OF " + t.getId() + " ---/");
 				}
 			} catch (InterruptedException e) {
-				e.printStackTrace(System.out);
+				e.printStackTrace();
 			}
 		}
 
 		this.selfTerminate();
 		channel.close();
 
-		System.out.printf("Server %d %s%n", this.getID(), getLastTESState());
+		if (!this.isByzantine)
+			System.out.printf("Server %d %s%n", this.getID(), getLastTESState());
 
 		System.out.printf("Server %d closed%n", this.getID());
 	}
@@ -239,7 +245,7 @@ public class Server extends ByzantineProcess {
 		BFTMessage<StrongReadIBFTValue> message = readConsensus.handleCommit(incomingMessage);
 		if (message == null) return;
 
-		System.out.println("Server " + this.getID() + " returning strong read to client.");
+		System.err.println("Server " + this.getID() + " returning strong read to client.");
 
 		StrongReadIBFTValue value = message.getValue();
 
@@ -250,7 +256,6 @@ public class Server extends ByzantineProcess {
 
 		if (client == null) return;
 
-		// TODO: send to client
 		TESState state = getTESState(timestamp);
 		if (state == null) return;
 
@@ -264,7 +269,7 @@ public class Server extends ByzantineProcess {
 		double tucs = account.getTucs();
 
 		CheckBalanceResponseMessage response = new CheckBalanceResponseMessage(ClientResponseMessage.Status.OK, timestamp, nonce, tucs);
-		System.out.printf("Server %d sending strong read response (%s) to client %d%n", this.getID(), response, client.getID());
+		System.err.printf("Server %d sending strong read response (%s) to client %d%n", this.getID(), response, client.getID());
 		sendClientResponse(client, response);
 	}
 
@@ -310,12 +315,10 @@ public class Server extends ByzantineProcess {
 		PropagateChangesMessage propagateMessage = (PropagateChangesMessage) message.getMessage();
 		PublicKey senderKey = message.getSender().getPublicKey();
 
-		System.out.printf("Server %d received account updates: %s%n", this.getID(), propagateMessage.toString());
+		System.err.printf("Server %d received account updates: %s%n", this.getID(), propagateMessage.toString());
 
 		snapshots.putIfAbsent(propagateMessage.getTimestamp(), new HashMap<>());
 		Map<PublicKey, Set<SignedTESAccount>> timestampMap = snapshots.get(propagateMessage.getTimestamp());
-
-		// FIXME: if message contains one or more incorrect state, reject all?
 
 		for (SignedTESAccount state : propagateMessage.getChanges()) {
 			if (state.validateState(senderKey)) {
@@ -393,7 +396,7 @@ public class Server extends ByzantineProcess {
 				ClientResponseMessage.Status status = ClientResponseMessage.Status.NOT_FOUND;
 				int instance = -1;
 
-				System.out.printf("Server %d handling weak reads for client %s%n", this._id, request.getSender());
+				System.err.printf("Server %d handling weak reads for client %s%n", this._id, request.getSender());
 
 				if (!signedStates.isEmpty()) {
 					status = ClientResponseMessage.Status.OK;
@@ -404,12 +407,12 @@ public class Server extends ByzantineProcess {
 				// sendClientResponse(request.getSender(), status, instance, transaction.getNonce());
 			}
 			else {
-				System.out.printf("Server %d handling strong reads for client %s%n", this._id, request.getSender());
+				System.err.printf("Server %d handling strong reads for client %s%n", this._id, request.getSender());
 				int instance = readConsensus.incrementInstance();
 				StrongReadIBFTValue value = new StrongReadIBFTValue(getLastTimestamp(), transaction.getSource(), transaction.getNonce());
 				BFTMessage<StrongReadIBFTValue> commit = new BFTMessage<>(BFTMessage.Type.COMMIT, instance, readConsensus.getRound(), value);
 				
-				System.out.printf("Server %d broadcasting BFT message with strong read value %s%n", this._id, commit.getValue());
+				System.err.printf("Server %d broadcasting BFT message with strong read value %s%n", this._id, commit.getValue());
 				ibftBroadcast.broadcast(commit);
 			}
 
@@ -448,14 +451,13 @@ public class Server extends ByzantineProcess {
 		tesStates.putIfAbsent(timestamp, tesStates.get(timestamp-1).copy());
 		TESState currentState = tesStates.get(timestamp);
 		// we assume that decides are in order (if not: kabooom)
-		List<Transaction> successfulTransactions = new ArrayList<>();
 
 		for (int j = 0; j < block.getTransactions().size(); j++) {
 			Transaction transaction = block.getTransactions().get(j);
 			// Perform transaction (in a whole)
 			boolean successfulTransaction = transaction.updateTESState(currentState);
 
-			if (successfulTransaction) successfulTransactions.add(transaction);
+			if (successfulTransaction) snapshotTransaction.add(transaction);
 
 			// Lookup for the source of the transaction
 			int idx = -1;
@@ -472,7 +474,7 @@ public class Server extends ByzantineProcess {
 
 			// Sending response to the client
 			HDLProcess client = pendingRequests.remove(idx).getValue();
-			System.out.printf("Server %d deciding for client %s with proposed value %s at instance %d%n", this.getID(), client, block, message.getInstance());
+			System.err.printf("Server %d deciding for client %s with proposed value %s at instance %d%n", this.getID(), client, block, message.getInstance());
 
 			ClientResponseMessage.Status status = successfulTransaction ? ClientResponseMessage.Status.OK : ClientResponseMessage.Status.REJECTED;
 
@@ -487,17 +489,16 @@ public class Server extends ByzantineProcess {
 
 		for (Transaction t : block.getRewards()) {
 			if (t.updateTESState(currentState))
-				successfulTransactions.add(t);
-			
-			// FIXME: maybe just add balance to leader's account?
-			// tesState.getAccount(getPublicKey()).addBalance(BlockchainNode.TRANSACTION_FEE);
-			// TESAccount source = tesState.getAccount(t.getSource());
-			// if (source != null) source.subtractBalance(BlockchainNode.TRANSACTION_FEE);
+			snapshotTransaction.add(t);
 		}
 
 		blockchainState.append(message.getInstance(), block);
 
-		propagateSignedChanges(message.getInstance(), successfulTransactions);
+		if (snapshotCounter++ % SNAPSHOT_BLOCK_SIZE == 0) {
+			propagateSignedChanges(message.getInstance(), snapshotTransaction);
+			snapshotTransaction.clear();
+		}
+		snapshotCounter %= SNAPSHOT_BLOCK_SIZE;
 	}
 
 	private void propagateSignedChanges(int timestamp, List<Transaction> transactions) throws IllegalStateException, InterruptedException {
@@ -508,7 +509,7 @@ public class Server extends ByzantineProcess {
 			if (t.getOperation().equals(Transaction.TESOperation.TRANSFER))
 				updatedAccounts.add(((TransferTransaction) t).getDestination());
 		}
-		System.out.printf("Server %d propagating states for %d accounts.%n", this._id, updatedAccounts.size());
+		System.err.printf("Server %d propagating states for %d accounts.%n", this._id, updatedAccounts.size());
 
 		PropagateChangesMessage message = new PropagateChangesMessage(timestamp);
 

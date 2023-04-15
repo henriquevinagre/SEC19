@@ -7,7 +7,7 @@ import pt.ulisboa.tecnico.sec.messages.ClientResponseMessage;
 public abstract class Command {
     private Client sender;
 
-    public Command(Client sender) {
+    protected Command(Client sender) {
         this.sender = sender;
     }
 

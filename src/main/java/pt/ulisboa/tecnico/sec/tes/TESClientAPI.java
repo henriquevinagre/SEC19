@@ -110,7 +110,7 @@ public class TESClientAPI extends HDLProcess {
 
                 responsesCount.put(entry, count);
 
-                System.out.printf("API CLIENT %d received %s for transaction %s (responses number %d / %d)%n", this._id, response, transaction.toString(), count, nResponses);
+                System.err.printf("API CLIENT %d received %s for transaction %s (responses number %d / %d)%n", this._id, response, transaction.toString(), count, nResponses);
 
                 if (count == nResponses)
                     return message;

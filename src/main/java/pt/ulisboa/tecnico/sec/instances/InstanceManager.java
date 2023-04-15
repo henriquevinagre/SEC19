@@ -28,6 +28,7 @@ public class InstanceManager {
 
     private static List<Server> _servers = new ArrayList<>();
     private static List<Client> _clients = new ArrayList<>();
+
     private static int _numByzantineProcesses;
     private static int _quorum;
 
@@ -67,12 +68,12 @@ public class InstanceManager {
 
         // Remove this line to always work, as 0 is always leader in our implementation xd
         // FIXME: Pa entrega s clhr deixamnos isto? pa correr sempre :)
-        shuffledServers.removeIf((s) -> s.getID() == 1);
+        shuffledServers.remove(getLeader(0, 0));
 
         Collections.shuffle(shuffledServers);
         for (int i = 0; i < _numByzantineProcesses; i++) {
             shuffledServers.get(i).setByzantine();
-        }
+        }  
 
         List<HDLProcess> newProcesses = new ArrayList<>();
         for (Client c: clients)
@@ -99,7 +100,7 @@ public class InstanceManager {
     }
 
     public static HDLProcess getLeader(int consensusInstance, int round) {
-        // for stage 2 use this
+        // for IBFT consensus with view change use this
         // return servers.get((consensusInstance + round) % servers.size());
         return _servers.get(0);
     }
@@ -120,6 +121,7 @@ public class InstanceManager {
         if (_clients.isEmpty() || _servers.isEmpty())
             throw new IllegalArgumentException("No client or server processes were created");
 
+        System.out.printf("Instance manager: [N = %d, F = %d] -> Q = %d %n", _servers.size(), _numByzantineProcesses, _quorum);
         // Self execution of the system through client requests
 
         Map<Server, Thread> serverThreads = new HashMap<>();
@@ -158,10 +160,10 @@ public class InstanceManager {
             }
         }
 
-        System.out.println("Clients terminated");
+        System.err.println("Clients terminated");
 
         // Signal servers to shutdown now
-        System.out.printf("Shutting down the servers...%n");
+        Logger.Logln("Shutting down the servers...", System.out);
         for (Server server :_servers) {
             server.kill();
         }

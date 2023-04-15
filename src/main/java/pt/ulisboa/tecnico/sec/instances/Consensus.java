@@ -50,7 +50,7 @@ public class Consensus<T extends IBFTValueIT> {
 			currentInstance = instance++;
 		}
 		if (this.process.equals(InstanceManager.getLeader(currentInstance, round))) {
-			System.out.printf("[L] Server %d starting instance %d of consensus %n", process.getID(), currentInstance);
+			System.err.printf("[L] Server %d starting instance %d of consensus %n", process.getID(), currentInstance);
 			// Creates PRE_PREPARE message
 			BFTMessage<T> pre_prepare = new BFTMessage<>(BFTMessage.Type.PRE_PREPARE, currentInstance, round, value);
 			pre_prepare.signMessage(process.getPrivateKey());
@@ -97,7 +97,7 @@ public class Consensus<T extends IBFTValueIT> {
 
 		// Reaching a quorum of PREPARE messages (given by different servers)
 		if (count == InstanceManager.getQuorum()) {
-			System.out.printf("%sServer %d received valid PREPARE quorum of consensus %d with value %s %n",
+			System.err.printf("%sServer %d received valid PREPARE quorum of consensus %d with value %s %n",
 				InstanceManager.getLeader(message.getInstance(), round).equals(process)? "[L] ": "", process.getID(), message.getInstance(), message.getValue());
 
 
@@ -123,11 +123,11 @@ public class Consensus<T extends IBFTValueIT> {
 		}
 
 		if (message.getClazz() == StrongReadIBFTValue.class)
-			System.out.println("!!!! Server " + process.getID() + " Commit count for StrongRead is " + count);
+			System.err.println("!!!! Server " + process.getID() + " Commit count for StrongRead is " + count);
 
 		// Reaching a quorum of COMMIT messages (given by different servers)
 		if (count == InstanceManager.getQuorum()) {
-			System.out.printf("%sServer %d received valid COMMIT quorum of consensus %d with value %s %n",
+			System.err.printf("%sServer %d received valid COMMIT quorum of consensus %d with value %s %n",
 				InstanceManager.getLeader(message.getInstance(), round).equals(process)? "[L] ": "", process.getID(), message.getInstance(), message.getValue());
 
 			// Performs DECIDE

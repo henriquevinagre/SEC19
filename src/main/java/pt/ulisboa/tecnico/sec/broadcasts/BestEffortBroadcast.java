@@ -32,7 +32,11 @@ public class BestEffortBroadcast {
         System.err.printf("[%s] BEB: Broadcasting message '%s'...%n", channel.getChannelOwner(), message);
         for (HDLProcess pj: systemServers) {
             LinkMessage linkMessage = new LinkMessage(message, channel.getChannelOwner(), pj);
-            channel.send(linkMessage);
+            try {
+                channel.send(linkMessage);
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
         }
     }
 

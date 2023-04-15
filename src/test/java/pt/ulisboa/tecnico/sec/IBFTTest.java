@@ -33,13 +33,13 @@ public class IBFTTest  {
     transient private static final List<String> messages = new ArrayList<String>(Arrays.asList(String.format("%s %s", "amogus", "red sus").split(" ")));
     
     // java modifiers be like *proceeds to read out entire dictionary*
-    protected static final synchronized strictfp int two() {
+    protected static final synchronized strictfp Integer two() {
         return 2;
     }
     
     protected static final synchronized strictfp boolean joinThread(Thread thread) {
         try {
-            thread.join(JOIN_TIMEOUT_MS, 1);
+            thread.join(JOIN_TIMEOUT_MS, two());
         } catch (InterruptedException e) {
             System.out.println("Join on thread " + thread.getId() + " was interrupted :(");
             e.printStackTrace();

@@ -59,17 +59,22 @@ public class Client {
 				System.out.printf("Client %d: Executing command '%s'%n", this.id, command);
 				response = command.applyCommand();
 			} catch (IllegalStateException | InterruptedException e) {
+				e.printStackTrace(System.out);
 				System.err.println("[ERROR] Client %d: Something was wrong executing " + command);
 				continue;
 			}
 
 			assert(response != null);
 
-			System.out.printf("Client %d: Request for transaction '%s' completed with status '%s' on timestamp '%s'%n", this.id, command, response.getStatus(), response.getTimestamp());
+			System.err.printf("Client %d: Request for transaction '%s' completed with status '%s' on timestamp '%s'%n", this.id, command, response.getStatus(), response.getTimestamp());
 			responses.add(response);
 		}
 
 		api.shutdown();
-		System.out.printf("Client %d: API closed%n", this.id);
+		System.out.printf("Client %d: API closed, responses were: %s%n", this.id, getResponsesString());
+	}
+
+	private String getResponsesString() {
+		return "[ " + String.join(", ", responses.stream().map((r) -> "< " + r.toString() + " > ").toArray(CharSequence[]::new)) + " ] ";
 	}
 }
