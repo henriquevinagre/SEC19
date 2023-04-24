@@ -1,6 +1,6 @@
 package pt.ulisboa.tecnico.sec.blockchain;
 
-import java.util.HashMap;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.Map;
 
 public class BlockchainState {
@@ -8,7 +8,7 @@ public class BlockchainState {
     private Map<Integer, BlockchainNode> _state;
 
     public BlockchainState() {
-        _state = new HashMap<>();
+        _state = new ConcurrentHashMap<>();
     }
 
     public void append(int instance, BlockchainNode newBlock) {

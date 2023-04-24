@@ -33,15 +33,14 @@ public class BestEffortBroadcast {
     }
 
     public void broadcast(Message message) throws IllegalStateException, InterruptedException {
-        System.out.printf("[%s] BEB: Broadcasting message '%s'...%n", channel.getChannelOwner(), message);
+        System.err.printf("[%s] BEB: Broadcasting message '%s'...%n", channel.getChannelOwner(), message);
         for (HDLProcess pj: systemServers) {
-            System.out.printf("[%s] BEB: sending '%s' to %d...%n", channel.getChannelOwner(), message, pj.getID());
+            System.err.printf("[%s] BEB: sending '%s' to %d...%n", channel.getChannelOwner(), message, pj.getID());
             LinkMessage linkMessage = new LinkMessage(message, channel.getChannelOwner(), pj);
             try {
                 channel.send(linkMessage);
             } catch (Exception e) {
-                e.printStackTrace(System.out);
-                System.out.flush(); // FIXME: TIRAR ISTO DO OUT????!?!?!??
+                e.printStackTrace();
             }
         }
     }

@@ -8,6 +8,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.ArrayList;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.AbstractMap.SimpleImmutableEntry;
@@ -72,9 +73,9 @@ public class Server extends ByzantineProcess {
 		pendingRequests = new ArrayList<>();
 		blockchainState = new BlockchainState();
 		toPropose = new BlockchainNode();
-		tesStates = new HashMap<>();
-		clientsSeqNum = new HashMap<>();
-		snapshots = new HashMap<>();
+		tesStates = new ConcurrentHashMap<>();
+		clientsSeqNum = new ConcurrentHashMap<>();
+		snapshots = new ConcurrentHashMap<>();
 		snapshotTransaction = new ArrayList<>();
 
 		tesStates.put(-1, new TESState());
@@ -237,8 +238,8 @@ public class Server extends ByzantineProcess {
 	private boolean checkTransactionNonce(Transaction t) {
 		clientsSeqNum.putIfAbsent(t.getSource(), Integer.MIN_VALUE);
 		System.out.println("[" + this._id + " | " + t +"] CHECKING TRANSACTION");
-		System.out.println("[" + this._id + " | " + t +"] source == null ? " + t.getSource() == null);
-		System.out.println("[" + this._id + " | " + t +"] clientsSeqNum == null ? " + clientsSeqNum == null);
+		System.out.println("[" + this._id + " | " + t +"] source == null ? " + (t.getSource() == null));
+		System.out.println("[" + this._id + " | " + t +"] clientsSeqNum == null ? " + (clientsSeqNum == null));
 		System.out.println("[" + this._id + " | " + t +"] clientsSeqNum has source ? " + clientsSeqNum.containsKey(t.getSource()));
 		int nonce = clientsSeqNum.get(t.getSource());
 
@@ -457,7 +458,7 @@ public class Server extends ByzantineProcess {
 
 		pendingRequests.add(new SimpleImmutableEntry<>(transaction, request.getSender()));
 
-		BlockchainNode toProposeCopy = new BlockchainNode(toPropose.getTransactions(), toPropose.getRewards());
+		BlockchainNode toProposeCopy = BlockchainNode.copy(toPropose);
 		System.out.printf("[%d] Before adding %s copy of toPropose is %s%n", this._id, transaction, toProposeCopy);
 		addTransactionToBlockchain(transaction);
 
