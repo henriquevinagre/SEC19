@@ -127,7 +127,13 @@ public class InstanceManager {
         Map<Server, Thread> serverThreads = new HashMap<>();
         for (Server server : _servers) {
             Thread t = new Thread(() -> {
-                server.execute();
+                try {
+                    server.execute();
+                } catch (Exception e) {
+                    System.out.println("Exception in InstanceManager?!?!??!?!");
+                    e.printStackTrace(System.out);
+                    System.out.flush();
+                }
             });
             t.start();
             serverThreads.put(server, t);

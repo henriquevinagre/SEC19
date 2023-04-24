@@ -11,7 +11,7 @@ public abstract class ByzantineProcess extends HDLProcess {
     private boolean actingByzantine = false;
     private SecureRandom randomGenerator = new SecureRandom();
 
-    public ByzantineProcess(int id, int port) throws UnknownHostException {
+    protected ByzantineProcess(int id, int port) throws UnknownHostException {
         super(id, port);
     }
 

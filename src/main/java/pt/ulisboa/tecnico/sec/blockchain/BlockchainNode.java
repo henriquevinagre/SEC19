@@ -29,12 +29,17 @@ public class BlockchainNode implements IBFTValueIT {
         this.rewards = rewards;
     }
 
+    public BlockchainNode(BlockchainNode node) {
+        this.transactions = new ArrayList<>(node.transactions);
+        this.rewards = new ArrayList<>(node.rewards);
+    }
+
     public static BlockchainNode copy(BlockchainNode node) {
-        return new BlockchainNode(new ArrayList<>(node.transactions), new ArrayList<>(node.rewards));
+        return new BlockchainNode(node);
     }
 
     public BlockchainNode copy() {
-        return new BlockchainNode(new ArrayList<>(this.transactions), new ArrayList<>(this.rewards));
+        return BlockchainNode.copy(this);
     }
 
     public List<Transaction> getTransactions() {

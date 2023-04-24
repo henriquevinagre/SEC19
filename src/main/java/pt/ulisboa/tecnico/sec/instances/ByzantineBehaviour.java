@@ -4,7 +4,8 @@ import java.security.SecureRandom;
 
 public enum ByzantineBehaviour {
     TERMINATE,
-    INCOMPLETE_BROADCAST;
+    INCOMPLETE_BROADCAST,
+    REPLAY_MESSAGE;
 
     private static final SecureRandom random = new SecureRandom();
 

@@ -25,6 +25,7 @@ import pt.ulisboa.tecnico.sec.messages.CheckBalanceResponseMessage;
 import pt.ulisboa.tecnico.sec.messages.ClientRequestMessage;
 import pt.ulisboa.tecnico.sec.messages.ClientResponseMessage;
 import pt.ulisboa.tecnico.sec.messages.LinkMessage;
+import pt.ulisboa.tecnico.sec.messages.Message;
 import pt.ulisboa.tecnico.sec.messages.PropagateChangesMessage;
 import pt.ulisboa.tecnico.sec.tes.SignedTESAccount;
 import pt.ulisboa.tecnico.sec.tes.TESAccount;
@@ -40,6 +41,9 @@ public class Server extends ByzantineProcess {
 
     // FLAG FOR BYZANTINE BEHAVIOUR
     private boolean isByzantine = false;
+
+	// For replay attack
+	private List<Message> receivedMessages;
 
 	private boolean running = false;
 	private boolean kys = true;
@@ -77,6 +81,7 @@ public class Server extends ByzantineProcess {
 		clientsSeqNum = new ConcurrentHashMap<>();
 		snapshots = new ConcurrentHashMap<>();
 		snapshotTransaction = new ArrayList<>();
+		receivedMessages = new ArrayList<>();
 
 		tesStates.put(-1, new TESState());
 	}
@@ -137,12 +142,25 @@ public class Server extends ByzantineProcess {
 				
 				System.out.printf("[%d] --------- Broadcast sabotaged successfully, N=%d.%n", this._id, ibftBroadcast.getInteractProcesses().size());
 				try {
-					//Thread.sleep(this.TIMEOUT / 2);
+					Thread.sleep(this.TIMEOUT / 2);
 				} catch (Exception e) {
 					e.printStackTrace();
+				} finally {
+					ibftBroadcast.setInteractProcesses(InstanceManager.getAllParticipants());
 				}
-				//ibftBroadcast.setInteractProcesses(InstanceManager.getAllParticipants());
 				break;
+			case REPLAY_MESSAGE:
+				if (receivedMessages.size() == 0) break;
+
+				int idx = getRandomGenerator().nextInt(receivedMessages.size());
+				
+				System.out.printf("[%d] --------- Replaying previously received message of type %s.%n", this._id, receivedMessages.get(idx).getMessageType());
+
+				try {
+					ibftBroadcast.broadcast(receivedMessages.get(idx));
+				} catch (InterruptedException | IllegalStateException e) {
+					break;
+				}
 			default:
 				break;
 		}
@@ -165,6 +183,10 @@ public class Server extends ByzantineProcess {
 			try {
 				// Receives message
 				LinkMessage requestMessage = ibftBroadcast.deliver();
+				System.err.printf("[%d] Just got message from broadcast: %s%n", this._id, requestMessage);
+
+				if (isByzantine)
+					receivedMessages.add(requestMessage.getMessage());
 
 				new Thread(() ->{
 					synchronized (activeHandlerThreads) {
@@ -172,9 +194,15 @@ public class Server extends ByzantineProcess {
 					}
 					try {
 						handleIncomingMessage(requestMessage);
-					} catch (IllegalStateException | NullPointerException | InterruptedException e) {
-						e.printStackTrace();
-						System.err.printf("Server %d %s catch %s%n", this.getID(), Thread.currentThread().getName(), e.toString());
+					} catch (Exception e) {
+						String message = e.getMessage();
+						if (e != null && !message.contains("is not active") && !message.contains("sleep interrupted")) {
+							e.printStackTrace(System.out);
+							System.out.flush();
+						}
+					//} catch (IllegalStateException | NullPointerException | InterruptedException e) {
+						//e.printStackTrace();
+						//System.err.printf("Server %d %s catch %s%n", this.getID(), Thread.currentThread().getName(), e.toString());
 					} finally {
 						synchronized (activeHandlerThreads) {
 							activeHandlerThreads.remove(Thread.currentThread());
@@ -193,18 +221,20 @@ public class Server extends ByzantineProcess {
 			}
 		}
 
-		System.err.printf("Server %d is closing...%n", this.getID());
+		System.out.printf("Server %d is closing...%n", this.getID());
 
-		for (int i = 0; i < activeHandlerThreads.size(); i++) {
+		List<Thread> activeThreadsCopy;
+		synchronized(activeHandlerThreads) {
+			activeThreadsCopy = new ArrayList<>(activeHandlerThreads);
+		}
+		for (int i = 0; i < activeThreadsCopy.size(); i++) {
 			Thread t = null;
-			synchronized (activeHandlerThreads) {
-				t = activeHandlerThreads.get(i);
-			}
+			t = activeThreadsCopy.get(i);
 
 			try {
 				t.interrupt();
 			} catch (Exception e) {
-				System.err.println(e);
+				e.printStackTrace();
 			}
 
 			try {
@@ -237,10 +267,6 @@ public class Server extends ByzantineProcess {
 
 	private boolean checkTransactionNonce(Transaction t) {
 		clientsSeqNum.putIfAbsent(t.getSource(), Integer.MIN_VALUE);
-		System.out.println("[" + this._id + " | " + t +"] CHECKING TRANSACTION");
-		System.out.println("[" + this._id + " | " + t +"] source == null ? " + (t.getSource() == null));
-		System.out.println("[" + this._id + " | " + t +"] clientsSeqNum == null ? " + (clientsSeqNum == null));
-		System.out.println("[" + this._id + " | " + t +"] clientsSeqNum has source ? " + clientsSeqNum.containsKey(t.getSource()));
 		int nonce = clientsSeqNum.get(t.getSource());
 
 		if (t.getNonce() > nonce) clientsSeqNum.replace(t.getSource(), nonce, t.getNonce());
@@ -388,16 +414,18 @@ public class Server extends ByzantineProcess {
 		BlockchainNode toProposeCopy = null;
 
 		synchronized (toProposeLock) {
-			System.out.printf("[%d] Hi im adding %s to %s%n", this._id, transaction, toPropose);
+			System.err.printf("[%d] Hi im adding %s to %s%n", this._id, transaction, toPropose);
 			toPropose.addTransaction(transaction, this.getPublicKey());
-			System.out.printf("[%d] Hi i just added %s to %s%n", this._id, transaction, toPropose);
+			System.err.printf("[%d] Hi i just added %s to %s%n", this._id, transaction, toPropose);
 			if (toPropose.isFull()) {
-				toProposeCopy = new BlockchainNode(toPropose.getTransactions(), toPropose.getRewards());
+				toProposeCopy = BlockchainNode.copy(toPropose);
 				toPropose = new BlockchainNode();
 			}
 		}
 
+		System.err.printf("[%d] toProposeCopy in addTransaction: %s %s%n", this._id, toProposeCopy, toProposeCopy != null);
 		if (toProposeCopy != null) {
+			System.err.printf("[%d] Should be starting consensus (addTransaction) with %s!!!%n", this._id, toProposeCopy);
 			this.consensus.startConsensus(toProposeCopy);
 		}
 	}
@@ -416,6 +444,8 @@ public class Server extends ByzantineProcess {
 		ClientRequestMessage requestMessage = (ClientRequestMessage) request.getMessage();
 		Transaction transaction = requestMessage.getTransaction();
 
+		System.out.printf("Server %d received client transaction : %s%n", this._id, transaction);
+
 		if (transaction.getOperation().equals(Transaction.TESOperation.CHECK_BALANCE)) {
 			CheckBalanceTransaction readTransaction = (CheckBalanceTransaction) transaction;
 
@@ -432,7 +462,6 @@ public class Server extends ByzantineProcess {
 				}
 
 				sendClientResponse(request.getSender(), new CheckBalanceResponseMessage(status, instance, transaction.getNonce(), signedStates));
-				// sendClientResponse(request.getSender(), status, instance, transaction.getNonce());
 			}
 			else {
 				System.err.printf("Server %d handling strong reads for client %s%n", this._id, request.getSender());
@@ -448,43 +477,42 @@ public class Server extends ByzantineProcess {
 		}
 
 		try {
-		System.out.printf("Server %d validating request from client %d.%n", this._id, request.getSender().getID()); // epic amogus fail tava no err ;-;
+			System.err.printf("Server %d validating request from client %d.%n", this._id, request.getSender().getID()); // FIXME: epic amogus fail tava no err ;-;
 
-		if (!transaction.validateTransaction() || !transaction.checkSyntax() || !checkTransactionNonce(transaction)) {
-			sendClientResponse(request.getSender(), ClientResponseMessage.Status.REJECTED, -1, transaction.getNonce());
-			System.out.printf("Server %d rejecting transaction %s, as it is invalid.%n", this._id, transaction);
-			return;
-		}
-
-		pendingRequests.add(new SimpleImmutableEntry<>(transaction, request.getSender()));
-
-		BlockchainNode toProposeCopy = BlockchainNode.copy(toPropose);
-		System.out.printf("[%d] Before adding %s copy of toPropose is %s%n", this._id, transaction, toProposeCopy);
-		addTransactionToBlockchain(transaction);
-
-		long time = System.currentTimeMillis();
-		System.out.printf("[%d] Starting block timeout for %s%n", this._id, transaction);
-		Thread.sleep(BlockchainNode.FILL_TIMEOUT);
-		long newTime = System.currentTimeMillis();
-		System.out.printf("[%d] Block timeout reached for %s, %d, %d.%n", this._id, transaction, newTime, newTime - time);
-
-		// After waiting for the timeout, check if block is still the same
-		//  and if it is, add that block to the blockchain.
-		boolean start = false;
-		synchronized (toProposeLock) {
-			System.out.printf("[%d] Block timeout reached, toPropose = %s and copy = %s.%n", this._id, toPropose, toProposeCopy);
-			if (toPropose.equals(toProposeCopy)) {
-				System.out.printf("[%d] Block timeout reached AND toPropose didn't change.%n", this._id);
-				start = true;
-				toPropose = new BlockchainNode();
+			if (!transaction.validateTransaction() || !transaction.checkSyntax() || !checkTransactionNonce(transaction)) {
+				sendClientResponse(request.getSender(), ClientResponseMessage.Status.REJECTED, -1, transaction.getNonce());
+				System.out.printf("Server %d rejecting transaction %s, as it is invalid.%n", this._id, transaction);
+				return;
 			}
-		}
-		if (start) {
-			this.consensus.startConsensus(toProposeCopy);
-		}
+
+			pendingRequests.add(new SimpleImmutableEntry<>(transaction, request.getSender()));
+
+			addTransactionToBlockchain(transaction);
+			BlockchainNode toProposeCopy = BlockchainNode.copy(toPropose);
+
+			Thread.sleep(BlockchainNode.FILL_TIMEOUT);
+
+			// After waiting for the timeout, check if block is still the same
+			//  and if it is, add that block to the blockchain.
+			boolean start = false;
+			synchronized (toProposeLock) {
+				System.err.printf("[%d] Block timeout reached, toPropose = %s and copy = %s.%n", this._id, toPropose, toProposeCopy);
+				if (toPropose.equals(toProposeCopy) && !toProposeCopy.isEmpty()) {
+					System.err.printf("[%d] Block timeout reached AND toPropose didn't change.%n", this._id);
+					start = true;
+					toPropose = new BlockchainNode();
+				}
+			}
+			if (start) {
+				System.out.printf("[%d] Should be starting consensus (timeout) with %s!!!%n", this._id, toProposeCopy);
+				this.consensus.startConsensus(toProposeCopy);
+			}
 		} catch (Exception e) {
-			e.printStackTrace(System.out);
-			System.out.flush();
+			if (!isByzantine) {
+				System.out.printf("[%d] Exception '%s'%n", this._id, e);
+				e.printStackTrace(System.out);
+				System.out.flush();
+			}
 			throw e;
 		}
 	}

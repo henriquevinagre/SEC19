@@ -38,8 +38,6 @@ public class PerfectLink extends Channel {
             System.err.printf("[%s] PL: Received message %s\n", this.owner, message);
         } while (_delivered.contains(message));
 
-        assert(message != null);
-
         System.err.printf("[%s] PL: Message not yet delivered! Delivering message %d ...\n", this.owner, message.getId());
         _delivered.add(message);
         return message;

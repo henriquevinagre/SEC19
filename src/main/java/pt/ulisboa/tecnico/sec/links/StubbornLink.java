@@ -161,11 +161,6 @@ public class StubbornLink extends Channel {
         message = this.getMessage();
         System.err.printf("[%s] SL: Received message with id: %d%n", this.owner, message.getId());
 
-        assert(message != null);
-
-        if (message.getTerminate())
-            return message;
-
         // Sending ACK to sender as a stop point
 
         // Creating ACK for the message
@@ -176,8 +171,12 @@ public class StubbornLink extends Channel {
         try {
             System.err.printf("[%s] SL: Sending %s%n", this.owner, ackMessage);
             _flInstance.send(ackMessage);
-        } catch (IllegalStateException ile) {
-            ile.printStackTrace();
+        } catch (Exception e) {
+            System.out.println("Exception in stubborn: " + e);
+            e.printStackTrace(System.out);
+            System.out.flush();
+        //} catch (IllegalStateException ile) {
+            //ile.printStackTrace();
             // ACK was lost, not a problem since the sender still retransmiting the same message more
         }
 
