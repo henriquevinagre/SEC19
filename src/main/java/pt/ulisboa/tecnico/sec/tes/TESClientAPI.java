@@ -92,6 +92,7 @@ public class TESClientAPI extends HDLProcess {
                     continue;
                 }
                 
+                System.out.printf("API CLIENT %d processing message %s for transaction %s%n", this._id, response, transaction.toString());
                 if (!response.getMessage().getMessageType().equals(Message.MessageType.CLIENT_RESPONSE) ||
                     sendersId.contains(response.getSender().getID()))
                     continue; // Ignoring response
@@ -110,7 +111,7 @@ public class TESClientAPI extends HDLProcess {
 
                 responsesCount.put(entry, count);
 
-                System.err.printf("API CLIENT %d received %s for transaction %s (responses number %d / %d)%n", this._id, response, transaction.toString(), count, nResponses);
+                System.out.printf("API CLIENT %d received %s for transaction %s (responses number %d / %d)%n", this._id, response, transaction.toString(), count, nResponses);
 
                 if (count == nResponses)
                     return message;

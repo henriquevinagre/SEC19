@@ -3,7 +3,8 @@ package pt.ulisboa.tecnico.sec.instances;
 import java.security.SecureRandom;
 
 public enum ByzantineBehaviour {
-    TERMINATE;
+    TERMINATE,
+    INCOMPLETE_BROADCAST;
 
     private static final SecureRandom random = new SecureRandom();
 

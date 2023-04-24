@@ -3,6 +3,7 @@ package pt.ulisboa.tecnico.sec.instances;
 import java.net.SocketTimeoutException;
 import java.net.UnknownHostException;
 import java.security.PublicKey;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -121,9 +122,29 @@ public class Server extends ByzantineProcess {
     }
 
     public void executeByzantineBehaviour(ByzantineBehaviour behaviour) {
-        stopByzantineBehaviour();
-        running = false;
-        System.out.printf("[%d] --------- Im no longer byzantine :((((  ( i still am, just quitting because i'm cool :sunglasses: )%n", this._id);
+		System.out.printf("[%d] --------- Just got byzantine behaviour " + behaviour + ".%n", this._id);
+        switch (behaviour) {
+			case TERMINATE:
+				stopByzantineBehaviour();
+				running = false;
+				System.out.printf("[%d] --------- Im no longer byzantine :((((  ( i still am, just quitting because i'm cool :sunglasses: )%n", this._id);
+				break;
+			case INCOMPLETE_BROADCAST:
+				List<HDLProcess> broadcastProcs = ibftBroadcast.getInteractProcesses();
+				Collections.shuffle(broadcastProcs);
+				ibftBroadcast.setInteractProcesses(broadcastProcs.subList(0, getRandomGenerator().nextInt(broadcastProcs.size())));
+				
+				System.out.printf("[%d] --------- Broadcast sabotaged successfully, N=%d.%n", this._id, ibftBroadcast.getInteractProcesses().size());
+				try {
+					//Thread.sleep(this.TIMEOUT / 2);
+				} catch (Exception e) {
+					e.printStackTrace();
+				}
+				//ibftBroadcast.setInteractProcesses(InstanceManager.getAllParticipants());
+				break;
+			default:
+				break;
+		}
     }
 
 	public void execute() throws IllegalThreadStateException {
@@ -215,6 +236,10 @@ public class Server extends ByzantineProcess {
 
 	private boolean checkTransactionNonce(Transaction t) {
 		clientsSeqNum.putIfAbsent(t.getSource(), Integer.MIN_VALUE);
+		System.out.println("[" + this._id + " | " + t +"] CHECKING TRANSACTION");
+		System.out.println("[" + this._id + " | " + t +"] source == null ? " + t.getSource() == null);
+		System.out.println("[" + this._id + " | " + t +"] clientsSeqNum == null ? " + clientsSeqNum == null);
+		System.out.println("[" + this._id + " | " + t +"] clientsSeqNum has source ? " + clientsSeqNum.containsKey(t.getSource()));
 		int nonce = clientsSeqNum.get(t.getSource());
 
 		if (t.getNonce() > nonce) clientsSeqNum.replace(t.getSource(), nonce, t.getNonce());
@@ -362,7 +387,9 @@ public class Server extends ByzantineProcess {
 		BlockchainNode toProposeCopy = null;
 
 		synchronized (toProposeLock) {
+			System.out.printf("[%d] Hi im adding %s to %s%n", this._id, transaction, toPropose);
 			toPropose.addTransaction(transaction, this.getPublicKey());
+			System.out.printf("[%d] Hi i just added %s to %s%n", this._id, transaction, toPropose);
 			if (toPropose.isFull()) {
 				toProposeCopy = new BlockchainNode(toPropose.getTransactions(), toPropose.getRewards());
 				toPropose = new BlockchainNode();
@@ -419,29 +446,45 @@ public class Server extends ByzantineProcess {
 			return;
 		}
 
+		try {
+		System.out.printf("Server %d validating request from client %d.%n", this._id, request.getSender().getID()); // epic amogus fail tava no err ;-;
+
 		if (!transaction.validateTransaction() || !transaction.checkSyntax() || !checkTransactionNonce(transaction)) {
 			sendClientResponse(request.getSender(), ClientResponseMessage.Status.REJECTED, -1, transaction.getNonce());
+			System.out.printf("Server %d rejecting transaction %s, as it is invalid.%n", this._id, transaction);
 			return;
 		}
 
 		pendingRequests.add(new SimpleImmutableEntry<>(transaction, request.getSender()));
 
 		BlockchainNode toProposeCopy = new BlockchainNode(toPropose.getTransactions(), toPropose.getRewards());
+		System.out.printf("[%d] Before adding %s copy of toPropose is %s%n", this._id, transaction, toProposeCopy);
 		addTransactionToBlockchain(transaction);
 
+		long time = System.currentTimeMillis();
+		System.out.printf("[%d] Starting block timeout for %s%n", this._id, transaction);
 		Thread.sleep(BlockchainNode.FILL_TIMEOUT);
+		long newTime = System.currentTimeMillis();
+		System.out.printf("[%d] Block timeout reached for %s, %d, %d.%n", this._id, transaction, newTime, newTime - time);
 
 		// After waiting for the timeout, check if block is still the same
 		//  and if it is, add that block to the blockchain.
 		boolean start = false;
 		synchronized (toProposeLock) {
+			System.out.printf("[%d] Block timeout reached, toPropose = %s and copy = %s.%n", this._id, toPropose, toProposeCopy);
 			if (toPropose.equals(toProposeCopy)) {
+				System.out.printf("[%d] Block timeout reached AND toPropose didn't change.%n", this._id);
 				start = true;
 				toPropose = new BlockchainNode();
 			}
 		}
 		if (start) {
 			this.consensus.startConsensus(toProposeCopy);
+		}
+		} catch (Exception e) {
+			e.printStackTrace(System.out);
+			System.out.flush();
+			throw e;
 		}
 	}
 
